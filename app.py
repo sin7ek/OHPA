@@ -11,6 +11,7 @@ import live
 import building
 import ventilation
 import rooms
+import research_flow
 
 INGRESS=os.getenv('OHPA_INSTALL_MODE','docker')=='ha_app'
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
@@ -253,6 +254,34 @@ async def update(request:Request):
     except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
 @app.post('/api/collect')
 def trigger():collector.WAKE.set();return {'queued':True}
+@app.get('/api/research/settings')
+def vfm_settings():
+    return research_flow.settings()
+@app.post('/api/research/settings')
+async def vfm_config(request:Request):
+    raw=await request.json()
+    try:return research_flow.configure(raw.get('enabled'),raw.get('confirmed'))
+    except (ValueError,TypeError) as e:raise HTTPException(400,str(e))
+@app.get('/api/research/export')
+def vfm_export(hours:float=24):
+    try:
+        a,b=range_(hours=hours,max_days=7)
+        rows=research_flow.observations(config(),a,b,research_flow.settings())
+        return {'row_count':len(rows),'csv':research_flow.export_csv(rows)}
+    except ValueError as e:raise HTTPException(400,str(e))
+@app.post('/api/research/train')
+def vfm_train(raw:dict):
+    try:
+        setup=research_flow.settings()
+        if not setup.get('enabled') or not setup.get('confirmed'):raise ValueError('Enable research and confirm measurement boundaries first')
+        return research_flow.train_csv(raw.get('csv'),config()['model'],raw.get('method','thermal'))
+    except (ValueError,TypeError,KeyError) as e:raise HTTPException(400,str(e))
+@app.get('/api/research/report')
+def vfm_report(hours:float=24,method:str='thermal'):
+    try:
+        a,b=range_(hours=hours,max_days=7)
+        return research_flow.report(config(),a,b,research_flow.settings(),method)
+    except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/metrics')
 def report(start:str|None=None,end:str|None=None,hours:float=24):
     try:a,b=range_(start,end,hours);return metrics(config(),a,b)

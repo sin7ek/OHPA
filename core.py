@@ -58,6 +58,7 @@ ROLES={
  'co2_indoor':('Indoor CO₂ (local zone)','ppm','expert',False,['ppm']),
  'bathroom_fan':('Local extract fan active','on/off','expert',False,['on/off']),
  'other_heat':('Other measured thermal heat input','W','expert',False,['W','kW']),
+ 'pump_pwm':('Water pump PWM','%','expert',False,['%']),
  'heating':('Space heating active (not DHW/cooling)','on/off','expert',False,['on/off']),
 }
 REGIONAL={'humidity':'relative_humidity_2m','dewpoint':'dew_point_2m','solar':'shortwave_radiation','wind':'wind_speed_10m','outside':'temperature_2m'}
@@ -133,6 +134,7 @@ def convert(value,unit,role,on_value='on'):
     elif u=='psi':x*=0.0689476
     # Reject impossible measurements, rather than silently clipping.
     if role in ('flow','flow_counter','reference_flow','reference_flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure','illuminance','wind_gust','rain_rate','air_pressure') and x<0:return None
+    if role=='pump_pwm' and not 0<=x<=100:return None
     if role=='wind_direction' and not 0<=x<=360:return None
     if role=='wind_direction':x%=360
     if role in ('humidity','zone_humidity','bathroom_humidity') and not 0<=x<=100:return None

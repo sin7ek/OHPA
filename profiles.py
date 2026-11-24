@@ -7,6 +7,7 @@ PROFILES={
     "return": "cv_retourtemperatuur_tui",
     "outside": "buitentemperatuur_ta",
     "frequency": "compressor_frequentie",
+    "pump_pwm": "pomp_p0_pwm",
     "defrost": "defrost",
     "supply_target": "huidig_setpoint",
     "thermal": "thermisch_vermogen",
