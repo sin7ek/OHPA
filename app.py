@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from core import *
 import collector
 import profiles
+import live
 
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
 if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
@@ -118,6 +119,10 @@ async def language(request:Request):
         value=json.loads(row[0]);value['language']=raw['language']
         conn.execute('UPDATE config SET body=? WHERE id=1',(json.dumps(value),))
     return {'ok':True}
+@app.get('/api/live')
+def live_snapshot():
+    try:return live.snapshot(config(),collector.ha_get('/api/states'))
+    except Exception as e:raise HTTPException(502,str(e)[:250])
 @app.get('/api/status')
 def status():
     c=config();m=mapping(c);return {'collector':getmeta('collector',{}),'series':{k:{'last_collected':local_iso(e) if (e:=series_end(series_id(k,v))) else None,'source':v.get('source','HA')} for k,v in m.items()},'now':local_iso(now())}

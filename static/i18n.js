@@ -4,7 +4,7 @@ const OHPA_I18N=(()=>{const en={
   "Verbinden…": "Connecting…",
   "Sensoren & setup": "Sensors & setup",
   "Expertanalyse": "Expert analysis",
-  "Warmtepompprestaties": "Heat pump performance",
+  "Historie":"History","Warmtepompprestaties": "Heat pump performance",
   "Netto warmte, elektriciteit, comfort en ontdooicycli.": "Net heat, electricity, comfort and defrost cycles.",
   "Vernieuwen": "Refresh",
   "Periode": "Period",
