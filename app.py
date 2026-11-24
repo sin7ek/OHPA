@@ -8,6 +8,7 @@ from core import *
 import collector
 import profiles
 import live
+import building
 
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
 if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
@@ -56,6 +57,10 @@ def compare_periods(before_start:str,before_end:str,after_start:str,after_end:st
 def get_heat_loss_model(start:str|None=None,end:str|None=None,hours:float=168)->dict:
     """Read-only exploratory steady-hour regression, requiring sufficient temperature range and coverage. Not certified heat-loss calculation."""
     a,b=range_(start,end,hours,max_days=90);return heat_loss(config(),a,b)
+@mcp.tool()
+def get_building_profile()->dict:
+    """Read-only optional dwelling profile and partial envelope estimate; no certified heat loss."""
+    p=building.normalize(getmeta('building_profile',{}));return {'profile':p,'estimate':building.estimate(p)}
 @mcp.tool()
 def get_measurement_setup()->dict:
     """Read-only mapping, units, collector health, weather source and logged interventions; excludes HA credentials."""
@@ -124,6 +129,14 @@ async def language(request:Request):
         value=json.loads(row[0]);value['language']=raw['language']
         conn.execute('UPDATE config SET body=? WHERE id=1',(json.dumps(value),))
     return {'ok':True}
+@app.get('/api/building')
+def building_profile():
+    p=building.normalize(getmeta('building_profile',{}));return {'profile':p,'estimate':building.estimate(p)}
+@app.post('/api/building')
+async def save_building(request:Request):
+    try:
+        p=building.normalize(await request.json());setmeta('building_profile',p);return {'profile':p,'estimate':building.estimate(p)}
+    except (ValueError,TypeError,KeyError,AttributeError) as e:raise HTTPException(400,str(e))
 @app.get('/api/live')
 def live_snapshot():
     try:return live.snapshot(config(),collector.ha_get('/api/states'))
