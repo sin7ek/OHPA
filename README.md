@@ -1,5 +1,12 @@
 # Open HeatPump Analytics (OHPA)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="branding/logos/primary-dark.svg">
+  <img alt="Open HeatPump Analytics" src="branding/logos/primary-light.svg" width="360">
+</picture>
+
+**Monitor · Analyze · Optimize**
+
 **Current release: v0.4.6 — experimental / pre-1.0**
 
 Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sensor data into transparent performance, comfort, defrost, weather and exploratory heat-loss analyses. It is manufacturer-independent and does not control your heat pump. No AI subscription or MCP connection is necessary.
@@ -42,6 +49,7 @@ OHPA does not estimate missing energy as zero, automatically adjust heating sett
 | [Optional MCP](docs/mcp.md) | AI interface, tools and security |
 | [Architecture](docs/architecture.md) | Shared distribution, persistence, security, release process |
 | [Working document](docs/WORKING.md) | Current state, decisions, open questions, next work and acceptance criteria |
+| [Brand guidelines](branding/brand-guidelines.md) | Visual identity and usage |
 | [Roadmap](ROADMAP.md) | Priorities and proposed milestones, not promised dates |
 | [Docker / shared changelog](CHANGELOG.md) | Release notes and historical development notes |
 | [HA app changelog](ohpa/CHANGELOG.md) | Supervisor-visible update notes |
