@@ -1,0 +1,22 @@
+services:
+  heatpump-analytics:
+    build: .
+    container_name: heatpump-analytics
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${HOST_PORT:-8095}:8095"
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      TZ: ${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_PATH:-/mnt/user/appdata/heatpump-analytics}:/data
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
