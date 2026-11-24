@@ -295,8 +295,14 @@ def hourly(cfg,a,b):
     return [metrics(cfg,x,y) for x,y in zip(edges[:-1],edges[1:])]
 
 def heat_loss(cfg,a,b):
+    import regression
     """Exploratory steady-state model, not EN12831 design sizing."""
-    rows=hourly(cfg,a,b);used=[];rejected={'partial_hour':0,'thermal_or_boundary_coverage':0,'temperature_coverage':0,'small_delta_t':0,'no_adjacent_hour':0,'indoor_temperature_change':0,'other_heat_coverage':0}
+    # Bounded chunks keep the general dashboard limit unchanged.
+    if not 0<b-a<=90*86400:raise ValueError('Heat loss model supports up to 90 days.')
+    rows=[];start=a
+    while start<b:
+        end=min(b,(math.floor(start/3600)+24*28)*3600);rows.extend(hourly(cfg,start,end));start=end
+    used=[];rejected={'partial_hour':0,'thermal_or_boundary_coverage':0,'temperature_coverage':0,'small_delta_t':0,'no_adjacent_hour':0,'indoor_temperature_change':0,'other_heat_coverage':0}
     for h in rows:
         m=h['means'];q=h['system_thermal_kwh'];n=h['hours']
         if not n or n<0.99:rejected['partial_hour']+=1;continue
@@ -324,10 +330,19 @@ def heat_loss(cfg,a,b):
             col=np.array([m[k] for m,q,h in filtered]);
             if np.std(col)>1e-8:columns.append(col);features.append(k)
     if np.ptp(delta)<4:return {**diagnostics,'status':'insufficient_temperature_range','hours':len(filtered),'delta_t_span_c':r(np.ptp(delta))}
-    X=np.column_stack([np.ones(len(delta))]+columns);coef,res,rank,s=np.linalg.lstsq(X,y,rcond=None);pred=X@coef
-    if rank<X.shape[1] or coef[1]<=0:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'warning':'Regression cannot identify a positive heat-loss slope.'}
-    rmse=np.sqrt(np.mean((y-pred)**2));den=np.sum((y-y.mean())**2)
-    return {**diagnostics,'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':r(coef[1]*1000,1),'intercept_kw':r(coef[0]),'features':features,'coefficients':{k:r(z,6) for k,z in zip(features,coef[1:])},'rmse_kw':r(rmse),'r2':r(1-np.sum((y-pred)**2)/den) if den>0 else None,'delta_t_range_c':[r(delta.min()),r(delta.max())],'warning':'Observational steady-hour regression; internal gains, thermal mass, solar, ventilation and missing other heating can bias slope. Not a certified design load or guaranteed bivalence point.'}
+    times=[parse_time(h['start']) for m,q,h in filtered]
+    variants=[]
+    for subset in [[0]]+[[0,i] for i in range(1,len(features))]+([list(range(len(features)))] if len(features)>2 else []):
+        model=regression.fit(y,[columns[i] for i in subset],[features[i] for i in subset],times)
+        if model:variants.append(model)
+    if not variants:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'warning':'Regression cannot identify a positive heat-loss slope.'}
+    best=variants[-1]
+    if best['heat_loss_w_per_k']<=0:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'models':variants,'warning':'Regression cannot identify a positive heat-loss slope.'}
+    # Preserve legacy top-level fields; all variants use identical eligible hours.
+    points=[{'time':local_iso(t),'delta_t':r(dx),'observed_kw':r(q),'predicted_kw':p} for t,dx,q,p in zip(times,delta,y,best['predicted_kw'])]
+    models=[{k:v for k,v in m.items() if k!='predicted_kw'} for m in variants]
+    return {**diagnostics,'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':best['heat_loss_w_per_k'],'heat_loss_ci95_w_per_k':best['heat_loss_ci95_w_per_k'],'intercept_kw':best['coefficients']['intercept'],'features':best['features'],'coefficients':{k:v for k,v in best['coefficients'].items() if k!='intercept'},'rmse_kw':best['rmse_kw'],'r2':best['r2'],'delta_t_range_c':[r(delta.min()),r(delta.max())],'models':models,'points':points,'selected_model':models[-1],'warning':'Exploratory observational regression; approximate HAC intervals do not account for model selection, thermal mass or unmeasured gains. Not certified design sizing.'}
+
 
 def weather_defrost(cfg,a,b):
     """Observed exposure in outdoor-temperature bins, with measured RH and signed thermal losses."""

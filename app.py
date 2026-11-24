@@ -15,9 +15,9 @@ if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SE
 if not all(ch.isalnum() or ch in '-_' for ch in MCP_SECRET):raise RuntimeError('MCP_SECRET must be URL-safe.')
 init()
 
-def range_(start=None,end=None,hours=24):
+def range_(start=None,end=None,hours=24,max_days=32):
     b=min(parse_time(end) if end else now(),now());a=parse_time(start) if start else b-float(hours)*3600
-    if not (0<b-a<=32*86400):raise ValueError('Choose a positive time range up to 32 days.')
+    if not (0<b-a<=max_days*86400):raise ValueError(f'Choose a positive time range up to {max_days} days.')
     return a,b
 
 def compact(s):return {k:v for k,v in s.items() if k!='cycles'}
@@ -55,7 +55,7 @@ def compare_periods(before_start:str,before_end:str,after_start:str,after_end:st
 @mcp.tool()
 def get_heat_loss_model(start:str|None=None,end:str|None=None,hours:float=168)->dict:
     """Read-only exploratory steady-hour regression, requiring sufficient temperature range and coverage. Not certified heat-loss calculation."""
-    a,b=range_(start,end,hours);return heat_loss(config(),a,b)
+    a,b=range_(start,end,hours,max_days=90);return heat_loss(config(),a,b)
 @mcp.tool()
 def get_measurement_setup()->dict:
     """Read-only mapping, units, collector health, weather source and logged interventions; excludes HA credentials."""
@@ -168,7 +168,7 @@ def hour_report(start:str|None=None,end:str|None=None,hours:float=24):
     except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/model')
 def model(start:str|None=None,end:str|None=None,hours:float=168):
-    try:a,b=range_(start,end,hours);return heat_loss(config(),a,b)
+    try:a,b=range_(start,end,hours,max_days=90);return heat_loss(config(),a,b)
     except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/compare')
 def cmp(before_start:str,before_end:str,after_start:str,after_end:str):
