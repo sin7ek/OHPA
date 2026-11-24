@@ -17,7 +17,7 @@ def test_release_metadata():
 def test_native_branding_pngs():
     for path, dimensions in (("ohpa/icon.png", (128, 128)), ("ohpa/logo.png", (250, 98))):
         data = (ROOT / path).read_bytes()
-        assert data[:8] == b"\\x89PNG\\r\\n\\x1a\\n"
+        assert data[:8] == bytes.fromhex("89504e470d0a1a0a")
         assert data[12:16] == b"IHDR"
         assert struct.unpack(">II", data[16:24]) == dimensions
 
