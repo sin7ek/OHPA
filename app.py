@@ -131,11 +131,14 @@ async def language(request:Request):
     return {'ok':True}
 @app.get('/api/building')
 def building_profile():
-    p=building.normalize(getmeta('building_profile',{}));return {'profile':p,'estimate':building.estimate(p)}
+    p=building.normalize(getmeta('building_profile',{}));return {'profile':p,'estimate':building.estimate(p),'saved_at':getmeta('building_saved_at')}
 @app.post('/api/building')
 async def save_building(request:Request):
     try:
-        p=building.normalize(await request.json());setmeta('building_profile',p);return {'profile':p,'estimate':building.estimate(p)}
+        p=building.normalize(await request.json());stamp=local_iso(now())
+        with db() as conn:
+            conn.executemany('INSERT OR REPLACE INTO meta VALUES(?,?)',[('building_profile',json.dumps(p)),('building_saved_at',json.dumps(stamp))])
+        persisted=building.normalize(getmeta('building_profile',{}));return {'profile':persisted,'estimate':building.estimate(persisted),'saved_at':getmeta('building_saved_at')}
     except (ValueError,TypeError,KeyError,AttributeError) as e:raise HTTPException(400,str(e))
 @app.get('/api/live')
 def live_snapshot():

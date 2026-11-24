@@ -70,6 +70,7 @@ def normalize(raw):
             'height':number(part.get('height'),0.001,1000),
             'custom_m3':number(part.get('custom_m3'),0.001,1000000),
             'source':choice(part.get('source'),SOURCES)})
+    p['ui_level']=choice(raw.get('ui_level'),('basic','extended','expert')) or 'basic'
     p['notes']=str(raw.get('notes',''))[:2000]
     return p
 def volume_calculation(parts):
@@ -95,12 +96,21 @@ def estimate(p):
             u=1/(s['rc']+{'wall':.17,'roof':.14,'floor':.21,'other':.17}[s['kind']]);method='approx_rc'
         f=1 if boundary=='outside' else factor if boundary in ('ground','unheated','adjacent') else None
         value=net*u*f if net is not None and u is not None and f is not None else None
+        reasons=[]
+        if net is None:reasons.append('area')
+        if u is None:reasons.append('u')
+        if f is None:reasons.append('boundary_factor')
         if value is None:missing.append(s['id'])
         else:total+=value;known+=1
-        rows.append({'id':s['id'],'name':s['name'],'net_area_m2':net,'u':u,'method':method if u is not None else None,'factor':f,'w_per_k':value})
+        rows.append({'id':s['id'],'name':s['name'],'net_area_m2':net,'u':u,'method':method if u is not None else None,'factor':f,'w_per_k':value,'missing':reasons})
     bridge_vals=[b['length']*b['psi'] for b in p.get('bridges',[]) if b['length'] is not None and b['psi'] is not None]
     flow=p.get('ventilation_flow');vent=p.get('ventilation');eff=p.get('wtr')
     ventilation=.34*flow*(1-eff/100 if vent=='wtr' else 1) if flow is not None and vent and (vent!='wtr' or eff is not None) else None
     infiltration=.34*p['infiltration_flow'] if p.get('infiltration_flow') is not None else None
     components=[total if known else None,sum(bridge_vals) if bridge_vals else None,ventilation,infiltration]
-    return {'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
+    missing_components=[]
+    if not surfaces:missing_components.append('surfaces')
+    if ventilation is None:missing_components.append('ventilation')
+    if infiltration is None:missing_components.append('infiltration')
+    if not bridge_vals or len(bridge_vals)<len(p.get('bridges',[])):missing_components.append('bridges')
+    return {'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}

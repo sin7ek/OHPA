@@ -41,3 +41,12 @@ def test_roof_calculations_persist_and_compute():
     assert building.estimate(p)['roof_areas_m2']==[60,18,60,None]
     assert building.normalize(p)['roof_calculations']==p['roof_calculations']
     assert not p['surfaces']  # calculations do not automatically create envelope surfaces
+
+def test_estimate_missing_reasons_and_flat_drainage():
+    p=building.normalize({'ui_level':'expert','roof_calculations':[{'width':6,'length':10,'pitch':2}], 'surfaces':[{'id':'roof','kind':'roof','area':60,'boundary':'outside'}]})
+    e=building.estimate(p)
+    assert p['ui_level']=='expert'
+    assert e['roof_areas_m2'][0]>60
+    assert e['surfaces'][0]['missing']==['u']
+    assert e['known_subtotal_w_per_k'] is None
+    assert 'ventilation' in e['missing_components']
