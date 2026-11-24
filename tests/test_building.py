@@ -28,3 +28,10 @@ def test_volume_incomplete():
     assert result['known_subtotal_m3']==150
     assert result['total_m3'] is None
     assert not result['complete']
+
+def test_scalable_geometry_and_custom_roof():
+    p=building.normalize({'geometry':{'storeys':3,'extensions':1,'roof_type':'flat','roof_planes':0},'volume_parts':[{'shape':'custom','custom_m3':42}]})
+    assert p['geometry']['storeys']==3
+    assert building.volume_calculation(p['volume_parts'])['total_m3']==42
+    with pytest.raises(ValueError):building.normalize({'geometry':{'storeys':2.5}})
+    with pytest.raises(ValueError):building.normalize({'geometry':{'roof_type':'flat','roof_planes':2}})

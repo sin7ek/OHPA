@@ -45,19 +45,26 @@ def normalize(raw):
     if len(raw.get('bridges',[]))>100:raise ValueError('Maximum 100 thermal bridges')
     for b in raw.get('bridges',[]):
         p['bridges'].append({'name':str(b.get('name',''))[:100],'length':number(b.get('length'),0,10000),'psi':number(b.get('psi'),-2,10),'source':choice(b.get('source'),SOURCES)})
+    geometry=raw.get('geometry') or {}
+    p['geometry']={'storeys':number(geometry.get('storeys'),1,30),'extensions':number(geometry.get('extensions'),0,30),'roof_type':choice(geometry.get('roof_type'),('flat','pitched','mixed')),'roof_planes':number(geometry.get('roof_planes'),0,30),'roof_inside':choice(geometry.get('roof_inside'),('yes','no','unknown'))}
+    for k in ('storeys','extensions','roof_planes'):
+        v=p['geometry'][k]
+        if v is not None and v!=int(v):raise ValueError('Geometry counts must be integers')
+    if p['geometry']['roof_type']=='flat' and p['geometry']['roof_planes'] not in (None,0):raise ValueError('Flat roof has no sloping roof planes')
     p['volume_parts']=[]
     if len(raw.get('volume_parts',[]))>100:raise ValueError('Maximum 100 volume parts')
     for part in raw.get('volume_parts',[]):
         p['volume_parts'].append({'name':str(part.get('name',''))[:100],
-            'shape':choice(part.get('shape'),('rect','tri')) or 'rect',
+            'shape':choice(part.get('shape'),('rect','tri','custom')) or 'rect',
             'length':number(part.get('length'),0.001,1000),
             'width':number(part.get('width'),0.001,1000),
             'height':number(part.get('height'),0.001,1000),
+            'custom_m3':number(part.get('custom_m3'),0.001,1000000),
             'source':choice(part.get('source'),SOURCES)})
     p['notes']=str(raw.get('notes',''))[:2000]
     return p
 def volume_calculation(parts):
-    values=[round(p['length']*p['width']*p['height']*(.5 if p['shape']=='tri' else 1),6)
+    values=[p.get('custom_m3') if p['shape']=='custom' else round(p['length']*p['width']*p['height']*(.5 if p['shape']=='tri' else 1),6)
         if all(p.get(k) is not None for k in ('length','width','height')) else None for p in parts]
     return {'parts_m3':values,'known_subtotal_m3':round(sum(v for v in values if v is not None),3) if any(v is not None for v in values) else None,
         'complete':bool(values) and all(v is not None for v in values),
