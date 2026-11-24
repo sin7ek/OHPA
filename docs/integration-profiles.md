@@ -127,7 +127,7 @@ Firmware power input uses a generation-dependent estimator; don't label it indep
 
 Do not silently apply the Single profile. Two compressors, defrost flags and hydraulic boundaries require per-unit analysis and topology-aware aggregation. Shared series flow must not be summed twice; parallel circuits need individual measured flows or a confirmed combined measurement boundary. Aggregate synchronized signed thermal energy and electrical energy before dividing; never average two COPs. Preserve per-unit defrost and modulation. Verify firmware generation-dependent max frequency instead of assuming Amber's 90 Hz.
 
-## Proposed wizard implementation (not yet implemented)
+## Wizard design and remaining work
 
 - Select manufacturer/model and integration separately; keep generic/manual mode.
 - Profile catalog with source links, version, role aliases, domains, expected units, default enabled state, confidence, power provenance and warnings. Match normalized suffix/name within selected device/prefix; no fuzzy auto-save, no hardcoded private entities. Show alternatives and missing/ambiguous candidates.
@@ -137,7 +137,7 @@ Do not silently apply the Single profile. Two compressors, defrost flags and hyd
 - Regression tests for renamed prefixes, ambiguity, missing entities, disabled sensors, unit mismatch, textual statuses, estimated power, existing mapping preservation, Single/Duo rejection, BUH boundary.
 - Translate UI and documentation NL/EN; persistent language preference. Profiles remain versioned and independently testable.
 
-Compatibility status: source review only for external integrations; real installation validation needed. No affiliation with manufacturers or integration authors.
+Implementation status: profile selection, exact prefix/suffix and unit matching, preview, explicit save and preservation of existing mappings are implemented. The bullets above include remaining proposals; full provenance catalog and broader device validation are not complete. Room registry discovery is separate. Compatibility status: source review only for external integrations; real installation validation needed. No affiliation with manufacturers or integration authors.
 
 ## Independent flow meter profiles / Onafhankelijke flowmeterprofielen
 
@@ -150,6 +150,6 @@ Flow hardware selection is independent of heat pump manufacturer and integration
 - Extend tested unit normalization to L/h, l/hr, L/min, L/s, m³/h, m³/min, m³/s and cumulative L/m³; gallons only with explicit US/imperial distinction. Never confuse pulse counts with calibrated volume.
 - Optional second independent flow meter: preserve primary source for heat/COP, compare only synchronized valid intervals, report signed and absolute deviation, relative difference with primary as reference and nonzero denominator, coverage, lag, flow-dependent discrepancy and defrost behavior. Do not auto-average, switch or calibrate against an unverified secondary meter. Keep separate series IDs and provenance.
 - Check reporting freshness and recorder coverage separately; repeated or retained MQTT states are not proof of fresh measurement. Explicit unknowns, counter resets and long gaps must not become fabricated zero flow. Verify both meters measure the same circuit; never sum series-connected meters.
-- Proposed UI: independent flow device profile, primary and optional reference mapping, source unit and measurement type, calibration provenance, reporting interval/quality warnings, comparison chart and CSV/MCP metrics. Existing settings must remain unchanged on upgrade. This section is a proposal, not implemented dual-meter support.
+- Proposed UI: independent flow device profile, primary and optional reference mapping, source unit and measurement type, calibration provenance, reporting interval/quality warnings, comparison chart and CSV/MCP metrics. Existing settings must remain unchanged on upgrade. This describes the original proposal; see implementation update below for current scope.
 
 Implementation update: independent primary/reference profiles, manual candidate filters, flow unit extensions, synchronized comparison, dashboard/CSV/MCP and flow bands are implemented in the following code change. Automatic registry discovery, freshness detection, lag estimation, and manufacturer profiles remain proposals.

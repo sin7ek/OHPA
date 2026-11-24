@@ -1,180 +1,54 @@
-# HeatPump Analytics — v0.4.4 (prototype)
+# Open HeatPump Analytics (OHPA)
 
-Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
+**Current release: v0.4.4 — experimental / pre-1.0**
 
-## Quick start (Unraid / Docker Compose)
+Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sensor data into transparent performance, comfort, defrost, weather and exploratory heat-loss analyses. It is manufacturer-independent and does not control your heat pump. No AI subscription or MCP connection is necessary.
 
-1. Extract this folder to a persistent project directory, e.g. `/mnt/user/appdata/heatpump-analytics-project` (not the separate data mount).
-2. In Home Assistant, create a dedicated account with the minimum necessary access and create a long-lived access token. A regular user may be sufficient; only consider additional privileges after a concrete permission error. The collector uses GET requests only. A HA access token itself is not intrinsically read-only.
-3. On Unraid:
+## Install
 
-```bash
-cd /mnt/user/appdata/heatpump-analytics-project
-cp .env.example .env
-chmod 600 .env
-openssl rand -hex 32
-```
-
-Edit `.env`: enter the HA URL and token, a generated `ADMIN_PASSWORD` (MCP_SECRET is optional; see the separate MCP guide), and the LAN IP of Unraid as `BIND_IP` (default is localhost only). `HOST_PORT=8095`; change if occupied. `DATA_PATH` can be adjusted to your preferred persistent appdata location. `TZ` must be your HA timezone. For optional local MCP tests, include the approved host in `MCP_ALLOWED_HOSTS`.
-
-```bash
-mkdir -p /mnt/user/appdata/heatpump-analytics
-chown 1000:1000 /mnt/user/appdata/heatpump-analytics
-chmod 700 /mnt/user/appdata/heatpump-analytics
-docker compose up -d --build
-docker compose logs -f
-```
-
-Open `http://UNRAID-LAN-IP:8095` in your browser (use only on trusted LAN/VPN; Basic authentication over plain HTTP does not encrypt credentials). Username `admin`, password from `.env`. Do not expose this dashboard publicly. Under **Sensoren & setup**, click **Entiteiten ophalen**, select the sensors from the searchable dropdowns and confirm their units. Use **OpenAmber-profiel voorstellen** if your entity IDs match the example installation. Verify mappings; the preset does not configure the BUH boundary or change HA.
-
-Click **Configuratie opslaan & historie ophalen**. Backfill proceeds in one-hour windows, in small batches; newly enabled sensors may have little or no recorded history. The status panel shows last attempts, errors and pending work. The database is retained under `/data` and is not subject to HA Recorder's purge policy. Back up this directory; for a simple consistent backup, stop the container first. No raw-data retention cap is set in this release.
-
-## Sensor mapping
-
-Use instantaneous **power** sensors (W/kW), not daily energy totals (kWh). Always verify units and physical measurement boundaries. Every role is optional in the wizard, but missing roles suppress or limit the corresponding analytics.
-
-| Role | Needed for | Expected units / value |
+| Installation | Best for | Status |
 |---|---|---|
-| Indoor temperature | Comfort and heat-loss model | °C/°F/K; climate `current_temperature` attribute also works |
-| Indoor target | Degree-hours of comfort deficit | °C; climate `temperature` attribute |
-| Outdoor temperature | Heat loss, operating conditions | °C; regional fallback if enabled |
-| Supply and return | Signed water-side thermal power | °C each, at the same hydraulic boundary |
-| Direct flow **or** volume counter | Thermal power | L/h, L/min, m³/h; alternatively L or m³ cumulative with adequate updates |
-| Electrical input | COP and consumption | W/kW, instantaneous, with defined system boundary |
-| Separate backup heater | Total system COP if separately supplied | W/kW; explicit choice for included / absent / unknown |
-| Compressor frequency | Modulation, time above chosen Hz threshold | Hz |
-| Defrost flag | Duration and observed starts | Binary state, configurable active value |
-| Space-heating active | Separate DHW/cooling from heating | Required unless heating-only operation for the analyzed period is explicitly confirmed |
-| Supply target | Curve and supply comparison | °C |
-| Thermal power / COP reported | Optional independent cross-check | W/kW; dimensionless COP |
-| Humidity / dew point | Icing conditions | % RH / °C; outdoor only |
-| Solar / wind | Weather covariates | W/m² / m/s, km/h, etc. |
-| PV production | Optional solar proxy (not irradiance) | W/kW instantaneous, not energy total |
-| Coil / refrigerant temperatures | Diagnostics | °C; distinguish pipe/coil sensor from saturation temperature |
-| Fan / EEV / pressures | Optional refrigerant diagnostics | rpm or %, steps or %, bar/kPa/MPa/psi |
-| Other thermal source | Heat-loss screening | Thermal W/kW, not electrical input of an air conditioner |
+| [Home Assistant OS app](docs/installation.md#home-assistant-os) | Supervisor-managed HA, Green, Yellow, compatible x86/ARM64 | Experimental; real Supervisor validation pending |
+| [Docker / Portainer / Unraid](docs/installation.md#docker--portainer--unraid) | HA Container and standalone servers | Docker CI smoke test passed |
+| [Docker Compose](docs/installation.md#docker-compose) | Reproducible self-managed install | Same application |
+| [Optional MCP](docs/mcp.md) | External AI-assisted analytics | Standalone Docker only; optional |
 
-### Example OpenAmber mappings
+Both distribution modes share the same code, version, database schema and web UI. Images are published for linux/amd64 and linux/arm64. Use one instance per database.
 
-The sample preset recognizes these **exact IDs** if present. Other installations can select differently named entities in the dropdowns.
+**Quick start HA OS:** add this repository in the App Store, install Open HeatPump Analytics, start and open Web UI. No separate HA token or MCP required. See the installation guide before use.
 
-- `climate.amber_thermostaat_warmtevraag` — attributes `current_temperature`, `temperature`
-- `sensor.openamber_buitentemperatuur_ta`
-- `sensor.openamber_cv_aanvoertemperatuur_tuo`
-- `sensor.openamber_cv_retourtemperatuur_tui`
-- `sensor.bijkeuken_openamber_pulse_meter` (verify L/h)
-- `sensor.kwh_meter_3_phase_actueel_vermogen_fase_2` (verify measurement boundary)
-- `sensor.kwh_meter_3_phase_actueel_vermogen_fase_3` (separate BUH in the example)
-- `sensor.openamber_compressor_frequentie`, `binary_sensor.openamber_defrost`
-- `sensor.openamber_huidig_setpoint`, `sensor.warmtepomp_cop_2`
+**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.4` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
 
-For the example Amber 95: select heat-only **only for periods with no DHW or cooling**; separate BUH electricity; 90 Hz max and 89 Hz high-load threshold. Confirm whether the BUH heat is included in the measured supply/return boundary. Do not assume it. Add additional OpenAmber diagnostic sensors by selecting their actual IDs.
+## What OHPA does
 
-## Expert weather
+- Live readings with timestamps and strict coherence checks for derived power/COP.
+- Historical signed water-side heat, electricity, COP, compressor modulation, defrost exposure and coverage; hourly CSV.
+- Independent primary/reference flow meter comparison.
+- Sensor mapping profiles for OpenAmber, remmob Amber, Electropaultje and OpenQuatt Single; generic manual mode.
+- Local and optional regional weather, before/after comparison, exploratory heat-loss regression with diagnostics and manual capacity curves.
+- Optional building profile with geometry, insulation assumptions, ventilation, and partial thermal-envelope estimates.
+- Optional room profiles, HA area/device discovery, temperature dynamics, humidity/dew point, comfort, CO₂ decay candidates and descriptive fan-assistance comparisons.
 
-1. Map your own HA weather-station sensors for RH, dew point, irradiance and wind. A KNMI or other weather integration already exposing these as HA sensor states or numeric attributes can be mapped the same way.
-2. Optionally enable Open-Meteo and enter approximate latitude/longitude. It fetches **regional modeled** hourly weather via the Historical Forecast API (fallback to forecast API recent past when the former returns an HTTP error). It is not a direct KNMI station integration, and it is not actual on-site observation. Check the source label. Local mapped sensors take precedence by role, even if their history is unavailable. The server sends coordinates to Open-Meteo only when this option is enabled. Open-Meteo usage terms apply; see https://open-meteo.com/en/terms.
-3. If RH and outdoor temperature are present but dew point is not mapped, calculate it with the Magnus approximation. Regional solar radiation is an hourly preceding-period mean; regional T, RH, wind and dew point are hourly samples treated as step values. No extrapolation into the future.
+OHPA does not estimate missing energy as zero, automatically adjust heating settings, certify heat loss, or establish causal savings from a simple before/after comparison. Per-room dynamic heat-loss modelling and integration into the dwelling regression are planned, not implemented.
 
-## Calculation contract
+## Documentation
 
-- All event timestamps are stored as UTC seconds, and displayed in the configured HA timezone with offset. The browser's date input assumes local time matches HA. Use ISO offsets for unambiguous DST queries.
-- Historical state changes are collected from the HA REST history endpoint. A state is treated as piecewise constant until its next event; mapped numeric climate attributes are supported. Intervals outside successfully collected coverage, or explicit `unknown`/`unavailable`, remain missing. This is recorder coverage, not a guarantee of sensor freshness or calibration.
-- Integrate at the union of all event timestamps and coverage boundaries, not simple row averages. Power is `water_factor × flow(L/h) × (supply − return)` in W. Default factor 1.163 Wh/L/K for water. Preserve negative heat, especially during defrost. A cumulative flow meter uses interval differences; resets and long intervals are excluded. Recorder snapshots at query boundaries can introduce small counter-derived flow errors; direct calibrated flow preferred.
-- COP uses only overlapping valid heat and electricity intervals. If BUH electricity is separate, add it to the electrical denominator. If BUH heat is outside the thermal boundary, estimate resistance heat at 1 W/W and label the assumption. Do not double count BUH heat. Confirm the boundary in settings. Missing data is not silently filled with zero, and partial energies are not extrapolated. The reported boundary COP is not necessarily the system COP.
-- Count observed off→on starts separately from on-periods censored at window boundaries or unknowns. Negative heat during defrost is direct measured loss; **not** the full counterfactual loss of missed heating and post-defrost recovery.
-- Comfort deficit = time integral of `max(target − indoor, 0)`.
-- The weather/defrost analysis groups measured exposure by temperature bins, including −3.5 to 0 and 0 to +3.5 °C. It is descriptive, not a causal model. Coil minus dew point is only a proxy for possible condensation.
-- Heat-loss model is an exploratory least-squares regression across at least 24 nearly steady hourly observations, sufficient temperature span, known system boundary and ≥95% coverage. It optionally uses observed wind and solar covariates. Internal gains, thermal storage, ventilation and other heat may bias results. It is not EN 12831 sizing and does not predict a certified bivalence point. No model-specific manufacturer capacity curves are embedded.
-- Before/after is an **unadjusted** comparison. Compare similar conditions and log interventions. Do not attribute changes solely to stooklijn from this tool. Changing mapping creates a separate normalized series; changing global boundary assumptions changes interpretation of historical windows.
+| Guide | Contents |
+|---|---|
+| [Installation](docs/installation.md) | HA OS, Docker, Portainer, Compose, updates, backups and troubleshooting |
+| [User guide](docs/user-guide.md) | Mapping, tabs, rooms, ventilation and interpretation |
+| [Integration profiles](docs/integration-profiles.md) | Source-reviewed sensor candidates and measurement boundaries |
+| [Calculation methodology](docs/methodology.md) | Equations, coverage, assumptions, model diagnostics |
+| [Optional MCP](docs/mcp.md) | AI interface, tools and security |
+| [Architecture](docs/architecture.md) | Shared distribution, persistence, security, release process |
+| [Working document](docs/WORKING.md) | Current state, decisions, open questions, next work and acceptance criteria |
+| [Roadmap](ROADMAP.md) | Priorities and proposed milestones, not promised dates |
+| [Changelog](CHANGELOG.md) | Historical development notes |
 
-## MCP connection (optional)
+## Verification
 
-This is an additional specialized MCP server, not a replacement for `homeassistant-ai/ha-mcp`. It exposes eight read-only tools: `get_performance`, `get_hourly_performance`, `get_defrost_analysis`, `compare_periods`, `get_heat_loss_model`, `get_weather_defrost_analysis`, `get_latest_measurements`, `get_measurement_setup`. No arbitrary HA calls or write actions.
+[v0.4.4 GitHub Actions](https://github.com/sin7ek/open-heatpump-analytics/actions/runs/45416452335) passed Python tests, JavaScript checks, AMD64 Docker smoke test, metadata consistency and multi-architecture build/publish. This does not establish real HA Supervisor installation, ARM runtime, external MCP interoperability, or scientific validation.
 
-Local URL:
+Report problems via GitHub with version/revision, install type, relevant logs and reproduction steps. Remove tokens, secret URLs, private entity identifiers and personal details before sharing.
 
-```
-http://UNRAID-LAN-IP:8095/mcp/<MCP_SECRET>/
-```
-
-Test locally, using the exact trailing slash and configured host allowlist. For remote AI clients, use HTTPS and a **separate reverse-proxy route that permits only this exact MCP URL**, never the dashboard or `/api/*`. The secret path is a credential. Do not log it in the proxy or share it in screenshots. Use additional authentication at the proxy where your client supports it; no built-in OAuth in this prototype. Do not expose port 8095 directly to the Internet. The separate admin password authenticates the dashboard only. UI setup is protected with Basic auth and a custom write header; keep access local or via VPN/TLS. Set `MCP_ALLOWED_HOSTS=localhost:*,127.0.0.1:*,your-mcp-domain.example` and recreate the container for external connections. NPM should forward the approved Host header and preserve the full path.
-
-Example client question: “Use HeatPump Analytics, get_performance(hours=48). Check data coverage and electrical boundary before interpreting COP. Then retrieve get_weather_defrost_analysis and assess available compressor reserve.”
-
-## Verification and limitations
-
-- Core test suite: `python -m pip install -r requirements.txt pytest && python -m pytest -q tests`.
-- Python and JavaScript syntax checked; core tests include stable power, signed defrost, synchronized COP, BUH boundary, sensor gaps, counter reset, censored defrosts, mode separation, unit conversions, weather grouping and mocked HA attribute history.
-- This first prototype was not deployed against your live HA or built and tested in Docker in the authoring environment. MCP SDK could not be installed there, so the actual MCP handshake, proxy and Mistral connection remain to be verified on your Unraid machine. Regional API calls also need live validation. No pretense of certified analytics.
-- The UI currently offers hourly CSV, not full raw import or export. Automated capacity-curve comparison, certified sizing, weather-normalized intervention estimates and post-defrost recovery metrics are future extensions. No OAuth inside this version.
-
-References: https://developers.home-assistant.io/docs/api/rest/ · https://open-meteo.com/en/docs/historical-forecast-api · https://github.com/modelcontextprotocol/python-sdk
-
-## v0.1.1 — optional local weather observations
-
-Map illuminance (lx/klx), independent station temperature, wind direction (circular mean), gust speed, rain rate, wetness (configure the actual active state), and atmospheric pressure. No mapping is required and existing SQLite configuration and series IDs remain unchanged. Illuminance and PV are proxies, not irradiance; the exploratory heat-loss model uses at most one solar covariate (irradiance first, then illuminance, then PV), plus wind if covered. Weather summaries include wetness as percentage of observed time. Derived dew point prefers mapped station temperature when available; use humidity from the same station. Regional fallback is unchanged. New fields require a saved mapping and backfill. No automatic weather correction or causal claims.
-
-## Independent flow meters (implemented)
-Select a primary and optional reference meter profile independently in Setup. Profiles filter candidate names, never automatically map or change HA. Reference direct flow or cumulative volume is optional; use the same hydraulic circuit and distinct measurements. The primary alone drives heat and COP. Dashboard, hourly CSV and MCP get_flow_comparison report synchronized coverage, signed bias, absolute error, volume-weighted relative bias, flow bands and defrost/non-defrost comparisons. MQTT freshness beyond recorder coverage, automatic calibration, and lag estimation are not implemented. Verify actual flow unit and calibration. New supported direct flow units include l/hr, L/s and m³/s. Existing mapping and database are retained.
-
-## v0.2.0 – integration profile preview
-Source-reviewed OpenAmber, remmob, Electropaultje and OpenQuatt Single profiles use an explicit HA entity prefix and exact suffix/domain/unit match. Missing or ambiguous candidates are not mapped; existing mappings remain unchanged. Preview and select before saving. Quatt Duo requires manual mapping and future per-unit analytics. Amber BUH boundary is a user-confirmed suggestion only. UI language preference is stored in SQLite; English translations cover core navigation/setup/dashboard labels, with some explanatory and diagnostic text still pending. No HA write operations. See docs/integration-profiles.md.
-
-### Live and history tabs
-Live reads one HA state snapshot every 15 seconds while visible; history remains independent and uses integrated Recorder data. Live derived heat, delta T, system power and COP require recent and mutually coherent HA timestamps (120 s age, 60 s skew); unavailable values remain blank. HA state timestamps are not proof of physical sensor freshness. Volume-counter-only installations have no derived instantaneous flow. Live water heat is signed across the selected hydraulic boundary and includes cooling/defrost. Live system COP is an instantaneous signed ratio, not period efficiency. No additional writes to HA or database. History explicitly labels average net thermal power.
-
-Historical KPI cards display the actual analyzed duration and start/end timestamps (including UTC offsets), not the currently selected dropdown value. The hourly chart uses the same resolved interval. Average power is time-weighted over valid covered intervals; observed energy is not extrapolated. Live cards have no historical period label.
-
-### Thermal comfort
-Historical cards show analysis duration only; exact start/end appear once above the cards. Comfort metrics use mutually observed indoor temperature and target intervals. Degree-hours integrate positive deficit/excess; mean deficit/excess divide by paired observed hours including zero-deficit/excess intervals. ±0.5 °C inclusive is a descriptive reference band, not a clinical comfort threshold. Coverage, paired means, maximum deficit, and below/within/above percentages are exported in hourly CSV, performance API and read-only MCP get_comfort_analysis. Missing data are not zero or extrapolated.
-
-Live contextual measurements (room temperature, target, outdoor and selected slow-changing weather values) display the last known HA state regardless of entity timestamp age. This is not a guarantee of physical freshness. Fast measurements retain the conservative timestamp gate for derived KPIs. Unavailable parent entities invalidate attribute values. Setup previews the selected attribute rather than the parent climate state.
-
-Live cards display available HA states even when timestamps are older, with age/last-known labels. Strict derived metrics are unchanged. When separately metered BUH explicitly reports zero but fails timestamp coherence, a separate labelled estimate may use that last-known state with recent coherent heat and WP power. Missing/nonzero old BUH is not substituted. Estimates do not affect historical calculations.
-
-Expert heat-loss model now has an independent period selector (default seven days) and mutually exclusive hourly rejection counts; minimum eligibility thresholds remain unchanged. Weather/defrost UI provides observed minutes, thermal coverage during active defrost, and descriptive summary in NL/EN. No causal inference; negative heat excludes missed production.
-
-### Extended heat-loss model
-Independent 14/30/60/90-day analysis uses retained local data in bounded 28-day chunks; HA backfill remains limited to nine days (older Recorder data not automatically imported). Same-hour model comparisons, approximate 95% gap-aware Newey-West HAC intervals, coefficients and observed/predicted samples are exposed in API/MCP. UI scatterplot holds other predictors at observed means. Manual capacity curve (empty by default) uses linear interpolation only within entered temperatures, matching net capacity and supply conditions is user responsibility. Demand includes intercept and other predictors at observed means, clipped at zero; extrapolation flagged. Indicative crossing and shortfall are not certified sizing. Capacity input is session-only.
-
-### Advanced model diagnostics
-Variants include hierarchical delta-T × wind interaction. Default is highest adjusted R² among positive baseline slopes; UI model selection controls diagnostics and sizing. VIF, Pearson correlations, actual-hour residual ACF, absolute residual/fitted correlation, expanding chronological validation and seven-calendar-day rolling slopes are available. Validation uses known test-hour weather, not a forecast; rolling and interaction slope are at zero wind. No causal claims; adjusted R² selection is exploratory. Sizing evaluates interaction at average observed wind. No extra dependencies.
-
-### Optional dwelling profile
-A separate local SQLite metadata profile survives sensor configuration updates. Basic orientation, editable facade suggestions and shelter; extended dimensions, ventilation, roof calculator and linked openings; expert U/Rc, explicit adjacent/ground factors, solar metadata, airflow, airtightness and bridges. All optional; no default physical values. Estimates are explicitly partial, with unknown surfaces reported. No automatic ground calculation, infiltration conversion or empirical wind/solar regression integration yet. Read-only MCP get_building_profile exposes the profile and estimate; no address required. Manual source field per surface/bridge and overall basic profile.
-
-The extended dwelling profile includes a persistent heated volume calculator with rectangular and triangular non-overlapping parts, optional flat-roof two-storey/extension template, provenance and explicit adoption into the volume field. Incomplete parts produce only a known subtotal. Saving the profile persists dimensions; no silent overwrite of existing volume.
-
-Scalable dwelling geometry stores storey count, extensions, flat/pitched/mixed roof, sloping plane count and whether roof space is within the heated envelope. Explicit generation creates editable non-overlapping volume parts; roof plane count does not imply volume count. Complex roof volume can be entered directly. Optional separate roof-plane rows in the thermal envelope do not replace existing surfaces. No automatic overwrite of saved heated volume.
-
-Roof calculations persist individually with their horizontal dimensions, pitch, provenance and optional linked roof surface. Flat roofs use 0°. Explicit adoption copies gross area and pitch into an existing roof surface or creates a confirmed new one. Calculations alone do not change the thermal envelope; multiple planes and extension roofs are supported.
-
-Dwelling profile saves now persist a timestamp and read the profile back from SQLite, preserve the selected input level, and show unsaved changes and missing calculation inputs. Flat roof pitch is explicitly entered (drainage slope can be nonzero). No assumed pitch for new roof calculations.
-
-Ventilation supports natural with local extract, separate or total outdoor exchange, explicit ACH scenarios and ranges, and provenance. Combined flow excludes separate infiltration from the subtotal. WTR requires separate flows. Optional HA roles co2_indoor (ppm) and bathroom_fan (on/off) feed read-only local CO2 decay and fan runtime analyses; nominal fan volume is never added to heat loss. CO2 analysis is manually selected and local-zone only, with coverage/sample/decay checks; no automatic adoption.
-
-Basic profile offers an explicitly selected illustrative whole-dwelling W/(m² heated floor area·K) scenario, including air exchange, independent of the component subtotal. Extended profile optionally uses broad illustrative U ranges per exterior surface; per-surface insulation overrides the scenario, explicit unknown disables it. Entered U or applicable Rc takes precedence. No automatic estimates for ground or other boundaries; no certification or population-calibrated defaults. Scenario ranges are assumptions, not confidence intervals. Expert values and existing profiles are preserved; scenarios are off by default.
-
-Calculation levels now differ: Basic uses whole-dwelling illustrative floor-area scenario only in UI; Extended uses surface scenarios when exact values are absent, without expert-only missing-data prompts; Expert uses explicit U/Rc only. Automatic scenarios use declared insulation or a visibly labelled medium example. Saved level controls API result; changing level requires save to refresh calculation. Estimates are not calibrated or certified.
-
-## v0.3.0 — dwelling and analytics update
-Dwelling profile levels, air exchange scenarios, optional CO₂ decay and local extract analysis, comfort metrics, regression diagnostics, grouped live sensors and newest-first defrost history. VERSION is the release version; every CI image additionally embeds its exact Git revision. Increment VERSION for subsequent releases; the footer and health endpoint read it automatically. The short revision identifies each build even between release bumps.
-
-## v0.3.1 — CO₂ decay candidates and zone context
-Optional CO₂-zone presence, temperature and humidity, plus bathroom temperature/humidity roles. Zone name and volume are optional metadata; seven-day candidate search uses observed CO₂ events, rejects detected presence, reports weather, temperature difference and fan activity with coverage. No absence guarantee or automatic profile adoption. Single CO₂ zone for now; further zones and bathroom moisture analysis are future work.
-
-## v0.4.0 — Rooms
-Optional independent room registry, manual or HA area/floor import, device-based mapping suggestions from real HA entities, editable sensor selection and units. Room histories collected with canonical series identities, local temperature/humidity/CO₂/presence and other sensor summaries, paired comfort, per-room CO₂ candidate search. Registry permission failure leaves manual entry available. No automatic whole-house regression changes or aggregate temperature substitution.
-
-## v0.4.1 — Room setup and dynamic diagnostics
-Unique per-area HA sensor suggestions (never overwrite), sorted floors, hidden unmapped rooms in analysis, emitter dropdown retaining old text, optional emitter fan state/power, observed hours, canonical units and binary runtime percentages, temperature trends and adjacent fully covered hourly pairs, simultaneous T/RH derived humidity and dew point. Fan-on/off temperature changes are descriptive only, not energy savings or causal estimates.
-
-## v0.4.2 — Emitter terminology
-Use fan-assisted convector/radiator labels, distinguish fan coil units, and add wall and ceiling heating. Existing stored emitter codes and sensor roles are unchanged.
-
-## v0.4.3 — Room loading and history collection
-Room configuration renders without waiting for HA registries, lazy per-room sensor editors, filtered suggestions limited to 80 matches, five-minute server registry cache and explicit refresh, no duplicate REST state fetch after registry load. Short history windows use batches of up to 24 mappings with fallback splitting; backward scan advances by up to three hours per cycle. Per-room minimum scan progress is distinct from valid measurement coverage. Existing history series and cursors are preserved.
-
-## v0.4.4 — Shared Docker / Home Assistant app
-See [installation guide](docs/installation.md). HA OS app uses the same versioned multi-architecture image and Supervisor Core API proxy, with ingress-only access. MCP is optional for Docker; existing configured secrets remain compatible. MCP is not exposed by the HA app. Experimental HA distribution until real Supervisor testing is completed.
+See [LICENSE](LICENSE). No affiliation with manufacturers, Home Assistant or integration authors.
