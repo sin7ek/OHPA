@@ -144,3 +144,5 @@ Variants include hierarchical delta-T × wind interaction. Default is highest ad
 
 ### Optional dwelling profile
 A separate local SQLite metadata profile survives sensor configuration updates. Basic orientation, editable facade suggestions and shelter; extended dimensions, ventilation, roof calculator and linked openings; expert U/Rc, explicit adjacent/ground factors, solar metadata, airflow, airtightness and bridges. All optional; no default physical values. Estimates are explicitly partial, with unknown surfaces reported. No automatic ground calculation, infiltration conversion or empirical wind/solar regression integration yet. Read-only MCP get_building_profile exposes the profile and estimate; no address required. Manual source field per surface/bridge and overall basic profile.
+
+The extended dwelling profile includes a persistent heated volume calculator with rectangular and triangular non-overlapping parts, optional flat-roof two-storey/extension template, provenance and explicit adoption into the volume field. Incomplete parts produce only a known subtotal. Saving the profile persists dimensions; no silent overwrite of existing volume.

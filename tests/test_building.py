@@ -15,3 +15,16 @@ def test_invalid_opening():
     with pytest.raises(ValueError):building.normalize({'surfaces':[{'id':'w','kind':'wall','area':3},{'id':'g','kind':'window','area':4,'parent':'w'}]})
 def test_empty():
     assert building.estimate(building.normalize({}))['known_subtotal_w_per_k'] is None
+
+def test_volume_parts_flat_and_pitched():
+    p=building.normalize({'volume':200,'volume_parts':[{'name':'ground','length':10,'width':6,'height':2.5},{'name':'extension','length':3,'width':6,'height':2.5},{'shape':'tri','length':10,'width':6,'height':2}]})
+    result=building.volume_calculation(p['volume_parts'])
+    assert result['total_m3']==255
+    assert p['volume']==200  # explicit adoption, no silent overwrite
+    assert building.estimate(p)['volume_calculation']['complete']
+def test_volume_incomplete():
+    p=building.normalize({'volume_parts':[{'length':10,'width':6,'height':2.5},{'length':3}]})
+    result=building.volume_calculation(p['volume_parts'])
+    assert result['known_subtotal_m3']==150
+    assert result['total_m3'] is None
+    assert not result['complete']
