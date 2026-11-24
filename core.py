@@ -50,6 +50,8 @@ ROLES={
  'eev':('Expansion valve position','steps','expert',False,['steps','%']),
  'high_pressure':('High refrigerant pressure','bar','expert',False,['bar','kPa','MPa','psi']),
  'low_pressure':('Low refrigerant pressure','bar','expert',False,['bar','kPa','MPa','psi']),
+ 'co2_indoor':('Indoor CO₂ (local zone)','ppm','expert',False,['ppm']),
+ 'bathroom_fan':('Local extract fan active','on/off','expert',False,['on/off']),
  'other_heat':('Other measured thermal heat input','W','expert',False,['W','kW']),
  'heating':('Space heating active (not DHW/cooling)','on/off','expert',False,['on/off']),
 }
@@ -98,7 +100,7 @@ def getmeta(k,default=None):
 def unit_norm(u):
     return str(u or '').strip().replace('³','3').replace('²','2').lower().replace(' ','')
 def convert(value,unit,role,on_value='on'):
-    if role in ('defrost','heating','wet'):
+    if role in ('defrost','heating','wet','bathroom_fan'):
         if value is None or str(value).lower() in ('unknown','unavailable','none',''): return None
         return float(str(value).lower()==str(on_value).lower())
     try: x=float(value)
@@ -129,6 +131,7 @@ def convert(value,unit,role,on_value='on'):
     if role=='wind_direction' and not 0<=x<=360:return None
     if role=='wind_direction':x%=360
     if role=='humidity' and not 0<=x<=100:return None
+    if role=='co2_indoor' and not 250<=x<=20000:return None
     return x
 
 def series_id(role,m):

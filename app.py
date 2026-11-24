@@ -9,6 +9,7 @@ import collector
 import profiles
 import live
 import building
+import ventilation
 
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
 if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
@@ -140,6 +141,16 @@ async def save_building(request:Request):
             conn.executemany('INSERT OR REPLACE INTO meta VALUES(?,?)',[('building_profile',json.dumps(p)),('building_saved_at',json.dumps(stamp))])
         persisted=building.normalize(getmeta('building_profile',{}));return {'profile':persisted,'estimate':building.estimate(persisted),'saved_at':getmeta('building_saved_at')}
     except (ValueError,TypeError,KeyError,AttributeError) as e:raise HTTPException(400,str(e))
+@app.get('/api/ventilation-fan')
+def ventilation_fan(start:str|None=None,end:str|None=None,hours:float=24):
+    try:
+        a,b=range_(start,end,hours);return ventilation.fan_report(config(),building.normalize(getmeta('building_profile',{})),a,b)
+    except ValueError as e:raise HTTPException(400,str(e))
+@app.get('/api/co2-decay')
+def co2_decay(start:str,end:str,outdoor:float):
+    try:
+        a,b=range_(start,end);return ventilation.decay(config(),a,b,outdoor)
+    except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/live')
 def live_snapshot():
     try:return live.snapshot(config(),collector.ha_get('/api/states'))

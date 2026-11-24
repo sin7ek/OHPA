@@ -50,3 +50,14 @@ def test_estimate_missing_reasons_and_flat_drainage():
     assert e['surfaces'][0]['missing']==['u']
     assert e['known_subtotal_w_per_k'] is None
     assert 'ventilation' in e['missing_components']
+
+def test_ach_no_double_count():
+    p=building.normalize({'volume':400,'ventilation':'natural_local','ventilation_flow':100,'infiltration_flow':50,'air_exchange':{'mode':'ach','ach':.5,'ach_low':.3,'ach_high':.8}})
+    e=building.estimate(p)
+    assert e['combined_air_exchange_w_per_k']==pytest.approx(68)
+    assert e['known_subtotal_w_per_k']==pytest.approx(68)
+    assert e['ventilation_w_per_k'] is None and e['infiltration_w_per_k'] is None
+    assert e['air_exchange_range_w_per_k']==pytest.approx([40.8,108.8])
+def test_total_wtr_not_assumed():
+    p=building.normalize({'volume':400,'ventilation':'wtr','air_exchange':{'mode':'ach','ach':.5}})
+    assert building.estimate(p)['combined_air_exchange_w_per_k'] is None

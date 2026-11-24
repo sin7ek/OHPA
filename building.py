@@ -17,8 +17,16 @@ def normalize(raw):
     if not isinstance(raw,dict):raise ValueError('Expected profile object')
     p={k:number(raw.get(k),lo,hi) for k,lo,hi in [('orientation',0,360),('year',1000,2100),('floor_area',0,100000),('volume',0,1000000),('ventilation_flow',0,100000),('wtr',0,100),('infiltration_flow',0,100000),('n50',0,100),('qv10',0,10000)]}
     if p['orientation']==360:p['orientation']=0
-    for k,opts in [('type',('terraced','corner','semi','detached','apartment','other')),('ventilation',('natural','mechanical','balanced','wtr','other')),('insulation',('unknown','low','medium','high')),('side',('left','right','both','none','unknown')),('source',SOURCES)]:
+    for k,opts in [('type',('terraced','corner','semi','detached','apartment','other')),('ventilation',('natural','natural_local','mechanical','balanced','wtr','other')),('insulation',('unknown','low','medium','high')),('side',('left','right','both','none','unknown')),('source',SOURCES)]:
         p[k]=choice(raw.get(k),opts)
+    air=raw.get('air_exchange') or {}
+    p['air_exchange']={'mode':choice(air.get('mode'),('separate','total','ach','unknown')) or 'separate',
+        'source':choice(air.get('source'),SOURCES),
+        'ach':number(air.get('ach'),0,20),'ach_low':number(air.get('ach_low'),0,20),'ach_high':number(air.get('ach_high'),0,20),
+        'fan_nominal_m3h':number(air.get('fan_nominal_m3h'),0,10000)}
+    av=p['air_exchange']
+    if av['ach_low'] is not None and av['ach_high'] is not None and av['ach_low']>av['ach_high']:raise ValueError('ACH lower bound exceeds upper bound')
+    if av['ach'] is not None and ((av['ach_low'] is not None and av['ach']<av['ach_low']) or (av['ach_high'] is not None and av['ach']>av['ach_high'])):raise ValueError('ACH central estimate outside bounds')
     p['facades']={}
     for k in ('front','rear','left','right'):
         f=raw.get('facades',{}).get(k,{})
@@ -107,10 +115,24 @@ def estimate(p):
     flow=p.get('ventilation_flow');vent=p.get('ventilation');eff=p.get('wtr')
     ventilation=.34*flow*(1-eff/100 if vent=='wtr' else 1) if flow is not None and vent and (vent!='wtr' or eff is not None) else None
     infiltration=.34*p['infiltration_flow'] if p.get('infiltration_flow') is not None else None
-    components=[total if known else None,sum(bridge_vals) if bridge_vals else None,ventilation,infiltration]
+    air=p['air_exchange'];mode=air['mode'];volume=p.get('volume')
+    # Total exchange already includes infiltration. HRV cannot be applied uniformly
+    # to total outdoor exchange because bypass/infiltration fractions are unknown.
+    combined=None;bounds=None
+    scenarios=[{'ach':ach,'flow_m3h':volume*ach,'w_per_k':.34*volume*ach} for ach in (.3,.5,.8)] if volume is not None and volume>0 else []
+    if mode!='separate':
+        ventilation=infiltration=None
+        if vent and vent!='wtr':
+            if mode=='total' and flow is not None:combined=.34*flow
+            elif mode=='ach' and volume is not None and volume>0:
+                if air['ach'] is not None:combined=.34*volume*air['ach']
+                if air['ach_low'] is not None and air['ach_high'] is not None:bounds=[.34*volume*air[k] for k in ('ach_low','ach_high')]
+    components=[total if known else None,sum(bridge_vals) if bridge_vals else None,ventilation,infiltration,combined]
     missing_components=[]
     if not surfaces:missing_components.append('surfaces')
-    if ventilation is None:missing_components.append('ventilation')
-    if infiltration is None:missing_components.append('infiltration')
+    if mode=='separate':
+        if ventilation is None:missing_components.append('ventilation')
+        if infiltration is None:missing_components.append('infiltration')
+    elif combined is None:missing_components.append('air_exchange')
     if not bridge_vals or len(bridge_vals)<len(p.get('bridges',[])):missing_components.append('bridges')
-    return {'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
+    return {'air_exchange_mode':mode,'combined_air_exchange_w_per_k':combined,'air_exchange_range_w_per_k':bounds,'air_exchange_scenarios':scenarios,'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
