@@ -2,6 +2,11 @@
 
 Newest releases first. For the Home Assistant App Store release notes, see [HA changelog](ohpa/CHANGELOG.md). Both distributions share the same release number.
 
+## 0.4.9
+
+- Experimental local Research & Virtual Flow tab: opt-in reference CSV preview/export, stable heating windows, local model training from selected CSV files, thermal/PWM/hybrid alternatives, held-out installation diagnostics and separate estimated flow/COP report.
+- Physical flow, measured COP and existing energy totals remain unchanged. No pretrained model or automatic community upload; real-world validation required.
+
 ## 0.4.8
 
 **Visual Identity & Branding**
