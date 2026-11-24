@@ -7,3 +7,8 @@ def test_rooms_optional_and_distinct():
     assert rooms.co2_config({'mapping':{}},p[1])['mapping']['co2_indoor']['entity']=='sensor.b'
 def test_invalid_room_unit():
     with pytest.raises(ValueError):rooms.normalize([{'id':'a','sensors':{'co2':{'entity':'sensor.a','unit':'W'}}}])
+
+def test_emitter_fan_mapping_and_legacy_emitter():
+    p=rooms.normalize([{'id':'a','emitter':'Jaga custom','sensors':{'emitter_fan':{'entity':'switch.fan','unit':'on/off'},'emitter_fan_power':{'entity':'sensor.watts','unit':'W'}}}])
+    assert p[0]['emitter']=='Jaga custom'
+    assert len(rooms.mappings(p))==2

@@ -2,7 +2,7 @@
 import re, math
 import numpy as np
 import core
-FIELDS={'temperature':('zone_temperature',['°C','°F','K']),'target':('target',['°C','°F','K']),'humidity':('zone_humidity',['%']),'co2':('co2_indoor',['ppm']),'presence':('zone_presence',['on/off']),'light':('illuminance',['lx','klx']),'fan':('bathroom_fan',['on/off']),'window':('zone_presence',['on/off']),'door':('zone_presence',['on/off']),'power':('power',['W','kW'])}
+FIELDS={'temperature':('zone_temperature',['°C','°F','K']),'target':('target',['°C','°F','K']),'humidity':('zone_humidity',['%']),'co2':('co2_indoor',['ppm']),'presence':('zone_presence',['on/off']),'light':('illuminance',['lx','klx']),'fan':('bathroom_fan',['on/off']),'emitter_fan':('zone_presence',['on/off']),'emitter_fan_power':('power',['W','kW']),'window':('zone_presence',['on/off']),'door':('zone_presence',['on/off']),'power':('power',['W','kW'])}
 def num(x):
     if x in (None,''):return None
     x=float(x)
@@ -37,12 +37,48 @@ def report(cfg,profile,a,b):
         metrics={}
         for k,v in vals.items():
             ok=np.isfinite(v);sec=d[ok].sum()
-            metrics[k]={'coverage_pct':core.r(100*sec/(b-a),2),'mean':core.r(np.sum(v[ok]*d[ok])/sec) if sec else None,'min':core.r(np.min(v[ok])) if sec else None,'max':core.r(np.max(v[ok])) if sec else None}
+            metrics[k]={'coverage_pct':core.r(100*sec/(b-a),2),'observed_hours':core.r(sec/3600),'mean':core.r(np.sum(v[ok]*d[ok])/sec) if sec else None,'min':core.r(np.min(v[ok])) if sec else None,'max':core.r(np.max(v[ok])) if sec else None}
+        # Use adjacent, fully covered hour bins; never bridge missing observations.
+        dynamics=None;moisture=None;fan_comparison=None
+        if 'temperature' in data:
+            ts,vs,cov=data['temperature']
+            ok=np.isfinite(vals['temperature'])
+            if ok.any():
+                idx=np.flatnonzero(ok);first,last=idx[0],idx[-1]
+                duration=(t[last]+d[last]-t[first])/3600
+                contiguous=bool(np.all(ok[first:last+1]))
+                dynamics={'first_c':core.r(vals['temperature'][first]),'last_c':core.r(vals['temperature'][last]),'change_c':core.r(vals['temperature'][last]-vals['temperature'][first]) if contiguous else None,'span_hours':core.r(duration),'contiguous':contiguous,'rate_c_per_h':core.r((vals['temperature'][last]-vals['temperature'][first])/duration) if contiguous and duration>=.5 else None}
+            # Averages over fully observed, adjacent hourly bins only.
+            def hourly_series(key):
+                if key not in data:return {}
+                ts,vs,cov=data[key];out={}
+                for hour in range(math.ceil(a/3600),math.floor(b/3600)):
+                    lo=hour*3600;hi=lo+3600
+                    cuts=np.unique(np.concatenate(([lo,hi],ts[(ts>lo)&(ts<hi)],np.array([z for x,y in cov for z in (x,y) if lo<z<hi]))))
+                    durations=np.diff(cuts);vv=core.interpolate_step(cuts[:-1],ts,vs,cov,False,cfg['counter_max_gap'])
+                    if np.isfinite(vv).all():out[hour]=float(np.sum(vv*durations)/3600)
+                return out
+            temp=hourly_series('temperature')
+            rates=[temp[h]-temp[h-1] for h in temp if h-1 in temp]
+            if dynamics is not None:dynamics.update({'hourly_pairs':len(rates),'mean_hourly_change_c':core.r(np.mean(rates)) if rates else None,'max_warming_c_per_h':core.r(max(rates)) if rates else None,'max_cooling_c_per_h':core.r(min(rates)) if rates else None})
+            if 'emitter_fan' in data:
+                fs=hourly_series('emitter_fan');groups={'on':[],'off':[]}
+                for h in temp:
+                    if h-1 not in temp or h not in fs or h-1 not in fs:continue
+                    if fs[h]==1 and fs[h-1]==1:groups['on'].append(temp[h]-temp[h-1])
+                    elif fs[h]==0 and fs[h-1]==0:groups['off'].append(temp[h]-temp[h-1])
+                fan_comparison={k:{'pairs':len(x),'mean_change_c_per_h':core.r(np.mean(x)) if x else None} for k,x in groups.items()}
+        if 'temperature' in vals and 'humidity' in vals:
+            x,y=vals['temperature'],vals['humidity'];ok=np.isfinite(x)&np.isfinite(y)&(y>0)&(y<=100)&(x>-50)&(x<80);sec=d[ok].sum()
+            if sec:
+                saturation=6.112*np.exp(17.62*x[ok]/(243.12+x[ok]));vapour=saturation*y[ok]/100
+                absolute=216.7*vapour/(273.15+x[ok]);g=np.log(vapour/6.112);dew=243.12*g/(17.62-g)
+                moisture={'coverage_pct':core.r(100*sec/(b-a),2),'absolute_humidity_g_m3':core.r(np.sum(absolute*d[ok])/sec),'dewpoint_c':core.r(np.sum(dew*d[ok])/sec),'vapour_pressure_hpa':core.r(np.sum(vapour*d[ok])/sec)}
         comfort=None
         if 'temperature' in vals and 'target' in vals:
             x,y=vals['temperature'],vals['target'];ok=np.isfinite(x)&np.isfinite(y);sec=d[ok].sum()
             if sec:comfort={'coverage_pct':core.r(100*sec/(b-a),2),'deficit_degree_hours':core.r(np.sum(np.maximum(y[ok]-x[ok],0)*d[ok])/3600),'within_half_degree_pct':core.r(100*d[ok&(np.abs(x-y)<=.5)].sum()/sec)}
-        result.append({'id':room['id'],'name':room['name'],'floor':room['floor'],'metrics':metrics,'comfort':comfort})
+        result.append({'id':room['id'],'name':room['name'],'floor':room['floor'],'metrics':metrics,'comfort':comfort,'dynamics':dynamics,'moisture':moisture,'emitter_fan_comparison':fan_comparison,'emitter':room['emitter']})
     return {'rooms':result,'start':core.local_iso(a),'end':core.local_iso(b),'warning':'Local room measurements only; no automatic extrapolation or changes to whole-house regression.'}
 def co2_config(cfg,room):
     # Reuse canonical role identities, so room and legacy mappings share history.
