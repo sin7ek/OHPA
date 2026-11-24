@@ -27,6 +27,7 @@ def normalize(raw):
     av=p['air_exchange']
     if av['ach_low'] is not None and av['ach_high'] is not None and av['ach_low']>av['ach_high']:raise ValueError('ACH lower bound exceeds upper bound')
     if av['ach'] is not None and ((av['ach_low'] is not None and av['ach']<av['ach_low']) or (av['ach_high'] is not None and av['ach']>av['ach_high'])):raise ValueError('ACH central estimate outside bounds')
+    p['simple_estimate']=choice(raw.get('simple_estimate'),('off','low','medium','high')) or 'off'
     p['facades']={}
     for k in ('front','rear','left','right'):
         f=raw.get('facades',{}).get(k,{})
@@ -37,7 +38,7 @@ def normalize(raw):
         sid=str(row.get('id',''))[:64]
         if not sid or sid in ids:raise ValueError('Duplicate or missing surface ID')
         ids.add(sid)
-        item={'id':sid,'name':str(row.get('name',''))[:100],'kind':choice(row.get('kind'),KINDS),'boundary':choice(row.get('boundary'),BOUNDARIES),'source':choice(row.get('source'),SOURCES),'parent':str(row.get('parent') or '')[:64]}
+        item={'id':sid,'name':str(row.get('name',''))[:100],'kind':choice(row.get('kind'),KINDS),'boundary':choice(row.get('boundary'),BOUNDARIES),'source':choice(row.get('source'),SOURCES),'parent':str(row.get('parent') or '')[:64],'insulation':choice(row.get('insulation'),('low','medium','high','unknown'))}
         if not item['kind']:raise ValueError('Surface kind required')
         for k,lo,hi in [('area',0,100000),('u',0,20),('rc',0,50),('orientation',0,360),('pitch',0,90),('g',0,1),('factor',0,1)]:
             item[k]=number(row.get(k),lo,hi)
@@ -91,8 +92,20 @@ def roof_area(item):
     if any(item.get(k) is None for k in ('width','length','pitch')):return None
     return round(item['width']*item['length']/math.cos(math.radians(item['pitch'])),3)
 
+# Explicit illustrative engineering scenarios, not national stock statistics,
+# building-code values or measurements. Tuples are low/central/high U (W/m²K).
+U_SCENARIOS={
+ 'wall':{'low':(.8,1.4,2.2),'medium':(.35,.6,.9),'high':(.15,.22,.35)},
+ 'roof':{'low':(.8,1.5,2.5),'medium':(.25,.45,.7),'high':(.12,.18,.3)},
+ 'floor':{'low':(.7,1.2,1.8),'medium':(.3,.5,.8),'high':(.15,.25,.4)},
+ 'window':{'low':(3,4.5,6),'medium':(1.5,2.2,3),'high':(.7,1.1,1.6)},
+ 'door':{'low':(2,3,4),'medium':(1.2,1.8,2.5),'high':(.7,1.1,1.6)}
+}
+# Whole dwelling illustrative scenarios per heated floor area; include air losses.
+# Independent of component calculation; never added to it.
+FLOOR_SCENARIOS={'low':(2,3.5,5),'medium':(1,1.8,3),'high':(.5,.9,1.5)}
 def estimate(p):
-    rows=[];missing=[];total=0.;known=0
+    rows=[];missing=[];total=0.;known=0;estimated_count=0;range_low=range_high=0.;scenario=p.get('simple_estimate','off')
     surfaces=p.get('surfaces',[]);by={s['id']:s for s in surfaces}
     for s in surfaces:
         parent=by.get(s['parent']);boundary=parent['boundary'] if parent else s['boundary'];factor=parent['factor'] if parent else s['factor']
@@ -102,6 +115,11 @@ def estimate(p):
         u=s['u'];method='direct_u'
         if u is None and s['rc'] is not None and s['kind'] in ('wall','roof','floor','other') and boundary=='outside':
             u=1/(s['rc']+{'wall':.17,'roof':.14,'floor':.21,'other':.17}[s['kind']]);method='approx_rc'
+        u_range=None
+        if u is None and s['rc'] is None and boundary=='outside' and scenario!='off':
+            grade=s.get('insulation') or scenario
+            u_range=U_SCENARIOS.get(s['kind'],{}).get(grade)
+            if u_range:u=u_range[1];method='scenario_u'
         f=1 if boundary=='outside' else factor if boundary in ('ground','unheated','adjacent') else None
         value=net*u*f if net is not None and u is not None and f is not None else None
         reasons=[]
@@ -109,8 +127,12 @@ def estimate(p):
         if u is None:reasons.append('u')
         if f is None:reasons.append('boundary_factor')
         if value is None:missing.append(s['id'])
-        else:total+=value;known+=1
-        rows.append({'id':s['id'],'name':s['name'],'net_area_m2':net,'u':u,'method':method if u is not None else None,'factor':f,'w_per_k':value,'missing':reasons})
+        else:
+            total+=value;known+=1
+            if method=='scenario_u':estimated_count+=1
+            range_low+=net*u_range[0]*f if u_range else value
+            range_high+=net*u_range[2]*f if u_range else value
+        rows.append({'id':s['id'],'name':s['name'],'net_area_m2':net,'u':u,'method':method if u is not None else None,'factor':f,'w_per_k':value,'missing':reasons,'u_range':list(u_range) if u_range else None})
     bridge_vals=[b['length']*b['psi'] for b in p.get('bridges',[]) if b['length'] is not None and b['psi'] is not None]
     flow=p.get('ventilation_flow');vent=p.get('ventilation');eff=p.get('wtr')
     ventilation=.34*flow*(1-eff/100 if vent=='wtr' else 1) if flow is not None and vent and (vent!='wtr' or eff is not None) else None
@@ -135,4 +157,7 @@ def estimate(p):
         if infiltration is None:missing_components.append('infiltration')
     elif combined is None:missing_components.append('air_exchange')
     if not bridge_vals or len(bridge_vals)<len(p.get('bridges',[])):missing_components.append('bridges')
-    return {'air_exchange_mode':mode,'combined_air_exchange_w_per_k':combined,'air_exchange_range_w_per_k':bounds,'air_exchange_scenarios':scenarios,'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
+    floor=p.get('floor_area');whole=None
+    if scenario in FLOOR_SCENARIOS and floor is not None and floor>0:
+        whole=[round(floor*v,2) for v in FLOOR_SCENARIOS[scenario]]
+    return {'simple_estimate':scenario,'whole_dwelling_scenario_w_per_k':whole,'whole_dwelling_factor_w_m2k':list(FLOOR_SCENARIOS[scenario]) if scenario in FLOOR_SCENARIOS else None,'estimated_surface_count':estimated_count,'transmission_scenario_range_w_per_k':[range_low,range_high] if estimated_count else None,'heated_volume_m3':p.get('volume'),'air_exchange_mode':mode,'combined_air_exchange_w_per_k':combined,'air_exchange_range_w_per_k':bounds,'air_exchange_scenarios':scenarios,'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}

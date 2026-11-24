@@ -61,3 +61,19 @@ def test_ach_no_double_count():
 def test_total_wtr_not_assumed():
     p=building.normalize({'volume':400,'ventilation':'wtr','air_exchange':{'mode':'ach','ach':.5}})
     assert building.estimate(p)['combined_air_exchange_w_per_k'] is None
+
+def test_simple_scenario_and_exact_override():
+    p=building.normalize({'floor_area':150,'simple_estimate':'medium','surfaces':[{'id':'r','kind':'roof','boundary':'outside','area':60},{'id':'w','kind':'wall','boundary':'outside','area':20,'u':.2},{'id':'f','kind':'floor','boundary':'ground','area':50}]})
+    e=building.estimate(p)
+    assert e['whole_dwelling_scenario_w_per_k']==[150,270,450]
+    assert e['transmission_w_per_k']==pytest.approx(31)
+    assert e['estimated_surface_count']==1
+    assert e['surfaces'][0]['method']=='scenario_u'
+    assert e['surfaces'][1]['method']=='direct_u'
+    assert e['surfaces'][2]['w_per_k'] is None
+    assert e['known_subtotal_w_per_k']==pytest.approx(31)
+def test_scenario_off_and_unknown():
+    p=building.normalize({'simple_estimate':'medium','surfaces':[{'id':'r','kind':'roof','boundary':'outside','area':60,'insulation':'unknown'}]})
+    assert building.estimate(p)['transmission_w_per_k'] is None
+    p['simple_estimate']='off'
+    assert building.estimate(p)['whole_dwelling_scenario_w_per_k'] is None
