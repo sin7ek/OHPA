@@ -1,4 +1,4 @@
-# HeatPump Analytics — v0.1.0 (prototype)
+# HeatPump Analytics — v0.1.1 (prototype)
 
 Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
 
@@ -111,3 +111,7 @@ Example client question: “Use HeatPump Analytics, get_performance(hours=48). C
 - The UI currently offers hourly CSV, not full raw import or export. Automated capacity-curve comparison, certified sizing, weather-normalized intervention estimates and post-defrost recovery metrics are future extensions. No OAuth inside this version.
 
 References: https://developers.home-assistant.io/docs/api/rest/ · https://open-meteo.com/en/docs/historical-forecast-api · https://github.com/modelcontextprotocol/python-sdk
+
+## v0.1.1 — optional local weather observations
+
+Map illuminance (lx/klx), independent station temperature, wind direction (circular mean), gust speed, rain rate, wetness (configure the actual active state), and atmospheric pressure. No mapping is required and existing SQLite configuration and series IDs remain unchanged. Illuminance and PV are proxies, not irradiance; the exploratory heat-loss model uses at most one solar covariate (irradiance first, then illuminance, then PV), plus wind if covered. Weather summaries include wetness as percentage of observed time. Derived dew point prefers mapped station temperature when available; use humidity from the same station. Regional fallback is unchanged. New fields require a saved mapping and backfill. No automatic weather correction or causal claims.
