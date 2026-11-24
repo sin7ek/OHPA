@@ -138,3 +138,16 @@ Do not silently apply the Single profile. Two compressors, defrost flags and hyd
 - Translate UI and documentation NL/EN; persistent language preference. Profiles remain versioned and independently testable.
 
 Compatibility status: source review only for external integrations; real installation validation needed. No affiliation with manufacturers or integration authors.
+
+## Independent flow meter profiles / Onafhankelijke flowmeterprofielen
+
+Flow hardware selection is independent of heat pump manufacturer and integration. Existing HA numeric state/attribute mapping can already read compatible MQTT, ESPHome, M-Bus and Modbus entities. No separate MQTT connection is necessary.
+
+- Aquaro Smart Water Monitor: manufacturer confirms HA MQTT support (https://www.myaquaro.com/). Discover actual HA entities and units; do not assume exact IDs or MQTT topics. Verify continuous closed-loop measurement, operating water temperature, pipe diameter/material, calibration, reporting latency, zero-flow behavior and whether values are instantaneous flow or accumulated volume. Consumer water monitor suitability for heating circuits is not established by MQTT support alone.
+- ESPHome/YF-B10 and Electropaultje: calibrated pulse-based flow or cumulative liters.
+- OpenQuatt: internal flow or selected flow source; verify hydraulic boundary.
+- Generic HA MQTT/Modbus/M-Bus ultrasonic or heat meter: select actual volumetric flow or cumulative volume; no brand dependency.
+- Extend tested unit normalization to L/h, l/hr, L/min, L/s, m³/h, m³/min, m³/s and cumulative L/m³; gallons only with explicit US/imperial distinction. Never confuse pulse counts with calibrated volume.
+- Optional second independent flow meter: preserve primary source for heat/COP, compare only synchronized valid intervals, report signed and absolute deviation, relative difference with primary as reference and nonzero denominator, coverage, lag, flow-dependent discrepancy and defrost behavior. Do not auto-average, switch or calibrate against an unverified secondary meter. Keep separate series IDs and provenance.
+- Check reporting freshness and recorder coverage separately; repeated or retained MQTT states are not proof of fresh measurement. Explicit unknowns, counter resets and long gaps must not become fabricated zero flow. Verify both meters measure the same circuit; never sum series-connected meters.
+- Proposed UI: independent flow device profile, primary and optional reference mapping, source unit and measurement type, calibration provenance, reporting interval/quality warnings, comparison chart and CSV/MCP metrics. Existing settings must remain unchanged on upgrade. This section is a proposal, not implemented dual-meter support.
