@@ -1,4 +1,5 @@
 import live,core,copy
+import pytest
 def setup():
     cfg=copy.deepcopy(core.DEFAULT);cfg.update(buh_mode='separate',buh_thermal='inside')
     states=[]
@@ -8,8 +9,8 @@ def setup():
     return cfg,states
 def test_live_snapshot():
     cfg,states=setup();s=live.snapshot(cfg,states,1000)
-    assert s['thermal_w']==6978 and s['system_power_w']==1500
-    assert s['system_cop']==6978/1500
+    assert s['thermal_w']==pytest.approx(6978) and s['system_power_w']==1500
+    assert s['system_cop']==pytest.approx(6978/1500)
 def test_stale_missing_and_signed_heat():
     cfg,states=setup();states[0]['last_updated']=core.iso(700)
     assert live.snapshot(cfg,states,1000)['thermal_w'] is None

@@ -124,3 +124,5 @@ Source-reviewed OpenAmber, remmob, Electropaultje and OpenQuatt Single profiles 
 
 ### Live and history tabs
 Live reads one HA state snapshot every 15 seconds while visible; history remains independent and uses integrated Recorder data. Live derived heat, delta T, system power and COP require recent and mutually coherent HA timestamps (120 s age, 60 s skew); unavailable values remain blank. HA state timestamps are not proof of physical sensor freshness. Volume-counter-only installations have no derived instantaneous flow. Live water heat is signed across the selected hydraulic boundary and includes cooling/defrost. Live system COP is an instantaneous signed ratio, not period efficiency. No additional writes to HA or database. History explicitly labels average net thermal power.
+
+Historical KPI cards display the actual analyzed duration and start/end timestamps (including UTC offsets), not the currently selected dropdown value. The hourly chart uses the same resolved interval. Average power is time-weighted over valid covered intervals; observed energy is not extrapolated. Live cards have no historical period label.
