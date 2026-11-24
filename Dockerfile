@@ -1,4 +1,7 @@
 FROM python:3.12-slim
+LABEL org.opencontainers.image.source="https://github.com/sin7ek/open-heatpump-analytics"
+LABEL org.opencontainers.image.title="Open HeatPump Analytics"
+LABEL org.opencontainers.image.description="Local heat pump analytics for Home Assistant"
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 COPY requirements.txt .
