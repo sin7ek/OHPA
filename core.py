@@ -27,6 +27,13 @@ ROLES={
  'dewpoint':('Outdoor dew point','°C','expert',False,['°C','°F','K']),
  'solar':('Global solar irradiance','W/m²','expert',False,['W/m²','kW/m²']),
  'wind':('Outdoor wind speed','m/s','expert',False,['m/s','km/h','mph','kn']),
+ 'illuminance':('Outdoor illuminance (proxy only)','lx','expert',False,['lx','klx']),
+ 'weather_temperature':('Weather station outdoor temperature','°C','expert',False,['°C','°F','K']),
+ 'wind_direction':('Wind direction','°','expert',False,['°']),
+ 'wind_gust':('Wind gust speed','m/s','expert',False,['m/s','km/h','mph','kn']),
+ 'rain_rate':('Rain intensity','mm/h','expert',False,['mm/h']),
+ 'wet':('Surface wet','on/off','expert',False,['on/off']),
+ 'air_pressure':('Atmospheric pressure','hPa','expert',False,['hPa','mbar','Pa','kPa']),
  'pv':('PV electrical production (proxy only)','W','expert',False,['W','kW']),
  'evaporator':('Evaporator coil temperature','°C','expert',False,['°C','°F','K']),
  'evap_sat':('Refrigerant evaporating temperature','°C','expert',False,['°C','°F','K']),
@@ -86,7 +93,7 @@ def getmeta(k,default=None):
 def unit_norm(u):
     return str(u or '').strip().replace('³','3').replace('²','2').lower().replace(' ','')
 def convert(value,unit,role,on_value='on'):
-    if role in ('defrost','heating'):
+    if role in ('defrost','heating','wet'):
         if value is None or str(value).lower() in ('unknown','unavailable','none',''): return None
         return float(str(value).lower()==str(on_value).lower())
     try: x=float(value)
@@ -104,11 +111,16 @@ def convert(value,unit,role,on_value='on'):
     elif u=='mph':x*=0.44704
     elif u=='kn':x*=0.514444
     elif u=='kw/m2':x*=1000
+    elif u=='klx':x*=1000
+    elif role=='air_pressure' and u=='pa':x/=100
+    elif role=='air_pressure' and u=='kpa':x*=10
     elif u=='kpa':x/=100
     elif u=='mpa':x*=10
     elif u=='psi':x*=0.0689476
     # Reject impossible measurements, rather than silently clipping.
-    if role in ('flow','flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure') and x<0:return None
+    if role in ('flow','flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure','illuminance','wind_gust','rain_rate','air_pressure') and x<0:return None
+    if role=='wind_direction' and not 0<=x<=360:return None
+    if role=='wind_direction':x%=360
     if role=='humidity' and not 0<=x<=100:return None
     return x
 
@@ -170,8 +182,8 @@ def aligned(cfg,a,b):
     e=np.unique(np.concatenate(edges));t=e[:-1];duration=np.diff(e)
     vals={k:interpolate_step(t,*d,k=='flow_counter',cfg['counter_max_gap']) for k,d in data.items()}
     # derive dew point using Magnus approximation only for co-observed outdoor T/RH
-    if 'dewpoint' not in vals and 'outside' in vals and 'humidity' in vals:
-        temp=vals['outside'];rh=vals['humidity'];g=np.log(np.maximum(rh,0.0001)/100)+17.62*temp/(243.12+temp)
+    if 'dewpoint' not in vals and ('weather_temperature' in vals or 'outside' in vals) and 'humidity' in vals:
+        temp=vals.get('weather_temperature',vals.get('outside'));rh=vals['humidity'];g=np.log(np.maximum(rh,0.0001)/100)+17.62*temp/(243.12+temp)
         vals['dewpoint']=243.12*g/(17.62-g);vals['dewpoint'][(rh<=0)|~np.isfinite(temp)]=np.nan
     if 'flow' not in vals and 'flow_counter' in vals:vals['flow']=vals['flow_counter']
     return t,duration,vals
@@ -219,8 +231,12 @@ def metrics(cfg,a,b):
             neg=float(np.sum(np.minimum(qseg[ok],0)*ds[ok])/3.6e6) if ok.any() else None
             cycles.append({'start':local_iso(t[i]),'end':local_iso(t[j]+d[j]),'minutes':r(ds.sum()/60,2),'negative_heat_kwh':r(neg,4) if neg is not None else None,'thermal_coverage_pct':r(ds[ok].sum()/ds.sum()*100,2),'start_observed':bool(i>0 and de[i-1]==0),'end_observed':bool(j+1<len(de) and de[j+1]==0)})
     deficit=np.maximum(v('target')-v('inside'),0)
-    summary={'start':local_iso(a),'end':local_iso(b),'hours':r(total/3600,3),'means':{k:avg(y) for k,y in x.items()},'coverage_pct':{k:cover(y) for k,y in x.items()},'net_thermal_kwh':energy(q),'positive_thermal_kwh':energy(np.maximum(q,0)),'negative_thermal_kwh':energy(np.minimum(q,0)),'net_thermal_kw':(r(avg(q)/1000) if avg(q) is not None else None),'thermal_coverage_pct':cover(q),'electrical_input_kwh':energy(p),'buh_kwh':energy(buh) if mode=='separate' else (0 if mode=='none' else None),'system_electrical_kwh':energy(pel),'system_thermal_kwh':energy(q_system),'system_cop':r(e_q/e_p) if e_q is not None and e_p and e_p>0 else None,'cop_coverage_pct':r(d[match].sum()/total*100,2),'boundary_cop':r(hp_e_q/hp_e_p) if hp_e_q is not None and hp_e_p and hp_e_p>0 else None,'boundary_cop_coverage_pct':r(d[hp_match].sum()/total*100,2),'defrost_starts':starts if known.any() else None,'defrost_episodes':episodes if known.any() else None,'defrost_minutes':r(d[on].sum()/60,2) if known.any() else None,'defrost_pct_observed':r(d[on].sum()/d[known].sum()*100,2) if known.any() else None,'defrost_negative_kwh':energy(np.where(on,np.minimum(q,0),np.nan)) if known.any() else None,'compressor_high_pct_observed':r(d[valid(freq)&(freq>=cfg['hz_threshold'])].sum()/d[valid(freq)].sum()*100,2) if valid(freq).any() else None,'compressor_high_hours':hours(valid(freq)&(freq>=cfg['hz_threshold'])) if valid(freq).any() else None,'comfort_deficit_degree_hours':r(np.nansum(deficit*d)/3600) if valid(deficit).any() else None,'comfort_coverage_pct':cover(deficit),'reported_thermal_kwh':energy(v('thermal')),'weather_sources':{k:('regional model (hourly)' if m.get('source')=='regional' else 'HA entity: '+m['entity']) for k,m in mapping(cfg).items() if k in REGIONAL},'cycles':cycles,'warnings':[]}
-    if 'dewpoint' in x and 'dewpoint' not in mapping(cfg):summary['weather_sources']['dewpoint']='derived from outdoor T and RH (Magnus)'
+    summary={'start':local_iso(a),'end':local_iso(b),'hours':r(total/3600,3),'means':{k:avg(y) for k,y in x.items()},'coverage_pct':{k:cover(y) for k,y in x.items()},'net_thermal_kwh':energy(q),'positive_thermal_kwh':energy(np.maximum(q,0)),'negative_thermal_kwh':energy(np.minimum(q,0)),'net_thermal_kw':(r(avg(q)/1000) if avg(q) is not None else None),'thermal_coverage_pct':cover(q),'electrical_input_kwh':energy(p),'buh_kwh':energy(buh) if mode=='separate' else (0 if mode=='none' else None),'system_electrical_kwh':energy(pel),'system_thermal_kwh':energy(q_system),'system_cop':r(e_q/e_p) if e_q is not None and e_p and e_p>0 else None,'cop_coverage_pct':r(d[match].sum()/total*100,2),'boundary_cop':r(hp_e_q/hp_e_p) if hp_e_q is not None and hp_e_p and hp_e_p>0 else None,'boundary_cop_coverage_pct':r(d[hp_match].sum()/total*100,2),'defrost_starts':starts if known.any() else None,'defrost_episodes':episodes if known.any() else None,'defrost_minutes':r(d[on].sum()/60,2) if known.any() else None,'defrost_pct_observed':r(d[on].sum()/d[known].sum()*100,2) if known.any() else None,'defrost_negative_kwh':energy(np.where(on,np.minimum(q,0),np.nan)) if known.any() else None,'compressor_high_pct_observed':r(d[valid(freq)&(freq>=cfg['hz_threshold'])].sum()/d[valid(freq)].sum()*100,2) if valid(freq).any() else None,'compressor_high_hours':hours(valid(freq)&(freq>=cfg['hz_threshold'])) if valid(freq).any() else None,'comfort_deficit_degree_hours':r(np.nansum(deficit*d)/3600) if valid(deficit).any() else None,'comfort_coverage_pct':cover(deficit),'reported_thermal_kwh':energy(v('thermal')),'weather_sources':{k:('regional model (hourly)' if m.get('source')=='regional' else 'HA entity: '+m['entity']) for k,m in mapping(cfg).items() if k in REGIONAL or k in ('weather_temperature','illuminance','wind_direction','wind_gust','rain_rate','wet','air_pressure','pv')},'cycles':cycles,'warnings':[]}
+    if 'wind_direction' in x:
+        direction=v('wind_direction');ok=valid(direction)
+        if ok.any():
+            angle=np.deg2rad(direction[ok]);sx=np.sum(np.sin(angle)*d[ok]);cx=np.sum(np.cos(angle)*d[ok]);summary['means']['wind_direction']=r(np.rad2deg(np.arctan2(sx,cx))%360) if np.hypot(sx,cx)>1e-9*d[ok].sum() else None
+    if 'dewpoint' in x and 'dewpoint' not in mapping(cfg):summary['weather_sources']['dewpoint']='derived from mapped weather-station T and RH (Magnus)' if 'weather_temperature' in x else 'derived from outdoor T and RH (Magnus)'
     if 'flow' not in mapping(cfg) and 'flow_counter' in mapping(cfg):summary['warnings'].append('Flow derived from successive cumulative readings; resets and long gaps excluded.')
     if cover(q)<95:summary['warnings'].append('Thermal coverage below 95%; energy is observed partial energy, not extrapolated.')
     if summary['cop_coverage_pct']<95:summary['warnings'].append('System COP coverage below 95% or system boundary not configured.')
@@ -258,7 +274,8 @@ def heat_loss(cfg,a,b):
     if len(filtered)<24:return {'status':'insufficient_data','hours':len(filtered),'minimum_hours':24,'warning':'Need at least 24 nearly steady, covered heating hours. Confirm BUH boundary and other heat sources.'}
     delta=np.array([m['inside']-m['outside'] for m,q,h in filtered]);y=np.array([q for m,q,h in filtered]);features=['delta_t'];columns=[delta]
     # include weather covariates only when every selected hour is observed; report their role, not causal claims.
-    for k in ('solar','wind'):
+    solar_proxy=next((k for k in ('solar','illuminance','pv') if all(m.get(k) is not None and h['coverage_pct'].get(k,0)>=95 for m,q,h in filtered) and np.std([m[k] for m,q,h in filtered])>1e-8),None)
+    for k in ([solar_proxy] if solar_proxy else [])+['wind']:
         if all(m.get(k) is not None and h['coverage_pct'].get(k,0)>=95 for m,q,h in filtered):
             col=np.array([m[k] for m,q,h in filtered]);
             if np.std(col)>1e-8:columns.append(col);features.append(k)
@@ -278,7 +295,7 @@ def weather_defrost(cfg,a,b):
         def mean(y):
             v=ok&np.isfinite(y);return r(np.sum(y[v]*d[v])/d[v].sum(),2) if v.any() else None
         active=both&(df==1);negative=active&np.isfinite(heat)
-        rows.append({'outside_range_c':[None if lo==-100 else lo,None if hi==100 else hi],'exposure_hours':r(d[ok].sum()/3600,3),'defrost_coverage_pct':r(d[both].sum()/d[ok].sum()*100,2),'defrost_pct_observed':r(d[active].sum()/d[both].sum()*100,2) if both.any() else None,'negative_heat_kwh':r(np.sum(np.minimum(heat[negative],0)*d[negative])/3.6e6,4) if negative.any() else None,'rh_mean_pct':mean(rh),'wind_mean_ms':mean(x.get('wind',nan)),'solar_mean_wm2':mean(x.get('solar',nan)),'dewpoint_mean_c':mean(dew),'coil_minus_dewpoint_c':mean(evap-dew)})
+        rows.append({'outside_range_c':[None if lo==-100 else lo,None if hi==100 else hi],'exposure_hours':r(d[ok].sum()/3600,3),'defrost_coverage_pct':r(d[both].sum()/d[ok].sum()*100,2),'defrost_pct_observed':r(d[active].sum()/d[both].sum()*100,2) if both.any() else None,'negative_heat_kwh':r(np.sum(np.minimum(heat[negative],0)*d[negative])/3.6e6,4) if negative.any() else None,'rh_mean_pct':mean(rh),'wind_mean_ms':mean(x.get('wind',nan)),'solar_mean_wm2':mean(x.get('solar',nan)),'dewpoint_mean_c':mean(dew),'coil_minus_dewpoint_c':mean(evap-dew),'illuminance_mean_lx':mean(x.get('illuminance',nan)),'wind_gust_mean_ms':mean(x.get('wind_gust',nan)),'rain_rate_mean_mmh':mean(x.get('rain_rate',nan)),'wet_pct_observed':(r(100*mean(x.get('wet',nan)),2) if mean(x.get('wet',nan)) is not None else None),'weather_temperature_mean_c':mean(x.get('weather_temperature',nan)),'air_pressure_mean_hpa':mean(x.get('air_pressure',nan))})
     return {'start':local_iso(a),'end':local_iso(b),'bins':rows,'warning':'Descriptive association only, not evidence of causality. A coil sensor is a proxy for surface temperature; a negative coil–dew point margin indicates potential condensation, not measured icing. Regional model weather is not an on-site measurement.'}
 
 def latest_measurements(cfg):
