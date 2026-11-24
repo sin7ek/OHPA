@@ -78,10 +78,17 @@ def collect_once():
     if not LOCK.acquire(blocking=False):return
     try:
         cfg=config();m=mapping(cfg);current=now()-15;errors=[];missing=[];pending=0
+        import rooms
+        extra=rooms.mappings(rooms.normalize(getmeta('rooms_profile',[])))
+        # Keep room series separate from global role selection, deduplicate identical canonical series.
+        pairs=list(m.items());seen={series_id(k,v) for k,v in pairs}
+        for _,_,role,v in extra:
+            sid=series_id(role,v)
+            if sid not in seen:pairs.append((role,v));seen.add(sid)
         floor=current-cfg['backfill_days']*86400
         anchor=math.floor(current/3600)*3600
         live={};historical={}
-        for role,v in m.items():
+        for role,v in pairs:
             if v.get('source')=='regional':continue
             sid=series_id(role,v)
             cursor=getmeta('live_v2:'+sid)
@@ -112,15 +119,15 @@ def collect_once():
             items=[(k,v) for k,v in items if getmeta('live_v2:'+series_id(k,v)) is not None]
             if items:run_batch(items,a,b,'back_v2:',a)
         progress={}
-        for role,v in m.items():
+        for role,v in pairs:
             if v.get('source')=='regional':continue
             sid=series_id(role,v);old=getmeta('back_v2:'+sid)
             live_end=getmeta('live_v2:'+sid)
             if old is None or old>floor or live_end is None:pending+=1
-            progress[role]=round(100*max(0,min(1,(current-(old if old is not None else current))/(current-floor))),1) if live_end is not None else 0
+            progress[role+':'+sid.split(':')[-1] if sid not in {series_id(k,v) for k,v in m.items()} else role]=round(100*max(0,min(1,(current-(old if old is not None else current))/(current-floor))),1) if live_end is not None else 0
         try:weather(cfg,m)
         except Exception as exc:errors.append('Regional weather: '+str(exc)[:250])
-        setmeta('collector',{'last_attempt':local_iso(now()),'errors':errors[:15],'missing_history':missing[:15],'backfill_pending_series':pending,'backfill_scan_pct':progress,'mapped_series':len(m)})
+        setmeta('collector',{'last_attempt':local_iso(now()),'errors':errors[:15],'missing_history':missing[:15],'backfill_pending_series':pending,'backfill_scan_pct':progress,'mapped_series':len(pairs)})
     finally:LOCK.release()
     return pending
 
@@ -132,3 +139,23 @@ def worker():
         # Backfill steadily, not a tight loop. Live collection defaults to two minutes.
         seconds=15 if pending else config()['poll_seconds']
         WAKE.wait(seconds);WAKE.clear()
+
+def room_registry():
+    """Read-only registry queries. No service calls; no token returned to UI."""
+    import json
+    from websockets.sync.client import connect
+    if not HA_URL or not HA_TOKEN:raise RuntimeError('HA connection not configured')
+    url=HA_URL.replace('https://','wss://',1) if HA_URL.startswith('https://') else HA_URL.replace('http://','ws://',1)
+    with connect(url+'/api/websocket',open_timeout=10,close_timeout=3,max_size=32*1024*1024) as ws:
+        ws.recv(timeout=10);ws.send(json.dumps({'type':'auth','access_token':HA_TOKEN}))
+        if json.loads(ws.recv(timeout=10)).get('type')!='auth_ok':raise RuntimeError('HA WebSocket authentication failed')
+        result={}
+        for i,kind in enumerate(('config/area_registry/list','config/device_registry/list','config/entity_registry/list','config/floor_registry/list'),1):
+            ws.send(json.dumps({'id':i,'type':kind}));r=json.loads(ws.recv(timeout=20))
+            if not r.get('success') and i!=4:raise RuntimeError('HA registry access unavailable: '+kind)
+            result[kind]=r.get('result',[]) if r.get('success') else []
+    states={e['entity_id']:e for e in entities()}
+    areas=[{k:x.get(k) for k in ('area_id','name','floor_id')} for x in result['config/area_registry/list']]
+    devices=[{k:x.get(k) for k in ('id','name','name_by_user','area_id','model','manufacturer')} for x in result['config/device_registry/list']]
+    ents=[{**states[x['entity_id']],'device_id':x.get('device_id'),'area_id':x.get('area_id')} for x in result['config/entity_registry/list'] if x.get('entity_id') in states and not x.get('disabled_by')]
+    return {'areas':areas,'devices':devices,'entities':ents,'floors':[{k:x.get(k) for k in ('floor_id','name','level')} for x in result['config/floor_registry/list']]}

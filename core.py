@@ -135,7 +135,7 @@ def convert(value,unit,role,on_value='on'):
     if role in ('flow','flow_counter','reference_flow','reference_flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure','illuminance','wind_gust','rain_rate','air_pressure') and x<0:return None
     if role=='wind_direction' and not 0<=x<=360:return None
     if role=='wind_direction':x%=360
-    if role=='humidity' and not 0<=x<=100:return None
+    if role in ('humidity','zone_humidity','bathroom_humidity') and not 0<=x<=100:return None
     if role=='co2_indoor' and not 250<=x<=20000:return None
     return x
 

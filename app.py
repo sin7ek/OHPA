@@ -10,6 +10,7 @@ import profiles
 import live
 import building
 import ventilation
+import rooms
 
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
 if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
@@ -136,6 +137,31 @@ async def language(request:Request):
         value=json.loads(row[0]);value['language']=raw['language']
         conn.execute('UPDATE config SET body=? WHERE id=1',(json.dumps(value),))
     return {'ok':True}
+@app.get('/api/rooms')
+def rooms_profile():
+    return {'rooms':rooms.normalize(getmeta('rooms_profile',[]))}
+@app.post('/api/rooms')
+async def save_rooms(request:Request):
+    try:
+        p=rooms.normalize(await request.json());setmeta('rooms_profile',p);collector.WAKE.set();return {'rooms':p}
+    except (ValueError,TypeError,KeyError,AttributeError) as e:raise HTTPException(400,str(e))
+@app.get('/api/rooms/registry')
+def rooms_registry():
+    try:return collector.room_registry()
+    except Exception:raise HTTPException(502,'HA registry unavailable; manual configuration remains available.')
+@app.get('/api/rooms/analysis')
+def rooms_analysis(hours:float=24):
+    try:
+        a,b=range_(hours=hours,max_days=7);return rooms.report(config(),rooms.normalize(getmeta('rooms_profile',[])),a,b)
+    except ValueError as e:raise HTTPException(400,str(e))
+@app.get('/api/rooms/co2')
+def room_co2(room_id:str,outdoor:float,hours:float=168):
+    try:
+        a,b=range_(hours=hours,max_days=7)
+        room=next((x for x in rooms.normalize(getmeta('rooms_profile',[])) if x['id']==room_id),None)
+        if room is None:raise ValueError('Unknown room')
+        return ventilation.candidates(rooms.co2_config(config(),room),a,b,outdoor)
+    except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/building')
 def building_profile():
     p=building.normalize(getmeta('building_profile',{}));return {'profile':p,'estimate':building.estimate(p),'saved_at':getmeta('building_saved_at')}
