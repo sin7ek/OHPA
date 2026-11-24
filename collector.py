@@ -47,8 +47,6 @@ def fetch_history(maps,a,b):
         if rows:
             # If recorder has no initial snapshot, do not imply coverage before the first record.
             rows.sort(key=lambda x:x[0]);start=max(a,rows[0][0]);add_series(series_id(role,m),rows,start,b);saved+=1
-        # Empty but successful query: advance scan cursor, without fabricating coverage.
-        setmeta('scan:'+series_id(role,m),b)
     return saved
 
 def weather(cfg,m):
@@ -79,31 +77,50 @@ def weather(cfg,m):
 def collect_once():
     if not LOCK.acquire(blocking=False):return
     try:
-        cfg=config();m=mapping(cfg);current=now()-15;errors=[];pending=0
-        groups={}
+        cfg=config();m=mapping(cfg);current=now()-15;errors=[];missing=[];pending=0
+        floor=current-cfg['backfill_days']*86400
+        anchor=math.floor(current/3600)*3600
+        live={};historical={}
         for role,v in m.items():
             if v.get('source')=='regional':continue
-            sid=series_id(role,v);end=getmeta('scan:'+sid,series_end(sid))
-            # 5 minute overlap catches recorder lag; initial backfill limited by user settings.
-            a=max(current-cfg['backfill_days']*86400,end-300 if end else 0)
-            # Shared 1h boundaries group requests for entities with similar progress.
-            a=max(current-cfg['backfill_days']*86400, math.floor(a/300)*300)
-            if a>=current:continue
-            groups.setdefault(a,[]).append((role,v))
-        for a,items in groups.items():
-            b=min(current,a+3600)
-            # Limit each request to 8 entities/roles. Avoid monopolizing recorder.
+            sid=series_id(role,v)
+            cursor=getmeta('live_v2:'+sid)
+            # First retrieve the most recent hour; old forward scan cursors remain untouched.
+            start=max(floor,anchor-3600 if cursor is None else cursor-300)
+            start=max(floor,math.floor(start/300)*300)
+            live.setdefault(start,[]).append((role,v))
+            # A separate backwards cursor records successful queries, including empty history.
+            old=getmeta('back_v2:'+sid)
+            end=min(anchor-3600,old) if old is not None else anchor-3600
+            if end>floor:
+                historical.setdefault(end,[]).append((role,v))
+        def run_batch(items,a,b,key,cursor):
             for i in range(0,len(items),8):
+                if STOP.is_set():return
                 batch=items[i:i+8]
                 try:
                     saved=fetch_history(batch,a,b)
-                    if saved<len(batch):errors.append(f'{len(batch)-saved} mapped series returned no history in {iso(a)}')
-                    if b<current-300:pending+=len(batch)
+                    for role,v in batch:setmeta(key+series_id(role,v),cursor)
+                    if saved<len(batch):missing.append(f'{len(batch)-saved} mapped series without history in {iso(a)}')
                 except Exception as exc:errors.append(str(exc)[:250])
-                if STOP.is_set():break
+        # Always prioritize live collection over older backfill.
+        for a,items in live.items():
+            if a<current:run_batch(items,a,current,'live_v2:',current)
+        for b,items in historical.items():
+            a=max(floor,b-3600)
+            # Do not advance historical import until the first live query succeeds.
+            items=[(k,v) for k,v in items if getmeta('live_v2:'+series_id(k,v)) is not None]
+            if items:run_batch(items,a,b,'back_v2:',a)
+        progress={}
+        for role,v in m.items():
+            if v.get('source')=='regional':continue
+            sid=series_id(role,v);old=getmeta('back_v2:'+sid)
+            live_end=getmeta('live_v2:'+sid)
+            if old is None or old>floor or live_end is None:pending+=1
+            progress[role]=round(100*max(0,min(1,(current-(old if old is not None else current))/(current-floor))),1) if live_end is not None else 0
         try:weather(cfg,m)
         except Exception as exc:errors.append('Regional weather: '+str(exc)[:250])
-        setmeta('collector',{'last_attempt':local_iso(now()),'errors':errors[:15],'backfill_pending_series':pending,'mapped_series':len(m)})
+        setmeta('collector',{'last_attempt':local_iso(now()),'errors':errors[:15],'missing_history':missing[:15],'backfill_pending_series':pending,'backfill_scan_pct':progress,'mapped_series':len(m)})
     finally:LOCK.release()
     return pending
 
