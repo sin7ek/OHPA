@@ -69,8 +69,11 @@ jobs:
           build-args: OHPA_REVISION=${{ github.sha }}
           tags: |
             ghcr.io/sin7ek/open-heatpump-analytics:latest
+            ghcr.io/sin7ek/ohpa:latest
             ghcr.io/sin7ek/open-heatpump-analytics:${{ github.sha }}
+            ghcr.io/sin7ek/ohpa:${{ github.sha }}
             ghcr.io/sin7ek/open-heatpump-analytics:${{ env.OHPA_VERSION }}
+            ghcr.io/sin7ek/ohpa:${{ env.OHPA_VERSION }}
 
       - uses: docker/build-push-action@v6
         with:
@@ -81,4 +84,6 @@ jobs:
           build-args: OHPA_REVISION=${{ github.sha }}
           tags: |
             ghcr.io/sin7ek/open-heatpump-analytics-ha:${{ env.OHPA_VERSION }}
+            ghcr.io/sin7ek/ohpa-ha:${{ env.OHPA_VERSION }}
             ghcr.io/sin7ek/open-heatpump-analytics-ha:${{ github.sha }}
+            ghcr.io/sin7ek/ohpa-ha:${{ github.sha }}

@@ -1,11 +1,11 @@
 # Installation
 
-Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.6 is pre-1.0; the HA app is experimental.
+Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.7 is pre-1.0; the HA app is experimental.
 
 ## Home Assistant OS
 
 1. Settings → Apps (formerly Add-ons) → App store → menu → Repositories.
-2. Add `https://github.com/sin7ek/open-heatpump-analytics`.
+2. Add `https://github.com/sin7ek/OHPA`.
 3. Select Open HeatPump Analytics, install and start.
 4. Open Web UI; optionally enable Show in sidebar.
 5. Follow the [user guide](user-guide.md) to map sensors.
@@ -23,7 +23,7 @@ Use the following Compose/Portainer stack as a starting point (replace placehold
 ```yaml
 services:
   ohpa:
-    image: ghcr.io/sin7ek/open-heatpump-analytics:0.4.6
+    image: ghcr.io/sin7ek/ohpa:0.4.7
     restart: unless-stopped
     ports:
       - "127.0.0.1:8095:8095"
@@ -97,3 +97,6 @@ See [MCP guide](mcp.md). It is not part of normal installation. Existing Docker 
 
 ## Release notes
 Docker users can read the [shared and Docker changelog](../CHANGELOG.md). Home Assistant users receive [app release notes](../ohpa/CHANGELOG.md) through the native update interface after Supervisor refreshes the repository. Both follow VERSION.
+
+## Repository rename and compatibility
+Existing Docker users can continue using `ghcr.io/sin7ek/open-heatpump-analytics:latest` or a version tag. The short `ohpa` image is published alongside it; verify anonymous pull availability before switching. For HA, retain the existing installed app and repository entry: do not uninstall, remove/re-add the repository or change slug/data directory just to rename it. The original HA image remains configured while short `ohpa-ha` public pull availability is checked. New users may add https://github.com/sin7ek/OHPA. Existing repository redirects and Supervisor updates need field verification.

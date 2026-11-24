@@ -1,6 +1,6 @@
 # Open HeatPump Analytics (OHPA)
 
-**Current release: v0.4.6 — experimental / pre-1.0**
+**Current release: v0.4.7 — experimental / pre-1.0**
 
 Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sensor data into transparent performance, comfort, defrost, weather and exploratory heat-loss analyses. It is manufacturer-independent and does not control your heat pump. No AI subscription or MCP connection is necessary.
 
@@ -17,7 +17,7 @@ Both distribution modes share the same code, version, database schema and web UI
 
 **Quick start HA OS:** add this repository in the App Store, install Open HeatPump Analytics, start and open Web UI. No separate HA token or MCP required. See the installation guide before use.
 
-**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.6` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
+**Quick start Docker:** use `ghcr.io/sin7ek/ohpa:0.4.7` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
 
 ## What OHPA does
 
@@ -48,8 +48,11 @@ OHPA does not estimate missing energy as zero, automatically adjust heating sett
 
 ## Verification
 
-[v0.4.4 GitHub Actions](https://github.com/sin7ek/open-heatpump-analytics/actions/runs/45416452335) passed Python tests, JavaScript checks, AMD64 Docker smoke test, metadata consistency and multi-architecture build/publish. This does not establish real HA Supervisor installation, ARM runtime, external MCP interoperability, or scientific validation.
+[v0.4.4 GitHub Actions](https://github.com/sin7ek/OHPA/actions/runs/45416452335) passed Python tests, JavaScript checks, AMD64 Docker smoke test, metadata consistency and multi-architecture build/publish. This does not establish real HA Supervisor installation, ARM runtime, external MCP interoperability, or scientific validation.
 
 Report problems via GitHub with version/revision, install type, relevant logs and reproduction steps. Remove tokens, secret URLs, private entity identifiers and personal details before sharing.
 
 See [LICENSE](LICENSE). No affiliation with manufacturers, Home Assistant or integration authors.
+
+## Repository rename
+The canonical repository is now https://github.com/sin7ek/OHPA. CI publishes short image aliases `ghcr.io/sin7ek/ohpa` and `ghcr.io/sin7ek/ohpa-ha` alongside the original image names. Existing installations should keep their current image and data path. HA app slug and configured legacy image remain unchanged during migration. New package public pull access must be verified before recommending a switch; if unavailable, use the original image.

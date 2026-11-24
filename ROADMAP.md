@@ -1,6 +1,6 @@
 # OHPA roadmap
 
-Status as of 2026-11-24. Priorities are proposals, not commitments or dates. See [working document](docs/WORKING.md) for actionable acceptance criteria. Current release v0.4.6. Keep manual configuration, manufacturer independence and both distributions throughout.
+Status as of 2026-11-24. Priorities are proposals, not commitments or dates. See [working document](docs/WORKING.md) for actionable acceptance criteria. Current release v0.4.7. Keep manual configuration, manufacturer independence and both distributions throughout.
 
 | Milestone | Scope | Status |
 |---|---|---|

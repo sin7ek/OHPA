@@ -2,6 +2,13 @@
 
 Newest releases first. For the Home Assistant App Store release notes, see [HA changelog](ohpa/CHANGELOG.md). Both distributions share the same release number.
 
+## 0.4.7
+
+- Repository renamed to `sin7ek/OHPA`; canonical links updated.
+- CI publishes short Docker and HA image aliases alongside existing names.
+- Existing HA slug, configured HA image, database paths and analytics unchanged.
+- New package public visibility and existing HA repository redirect/update behavior require verification.
+
 ## 0.4.6
 
 ### Shared
@@ -19,7 +26,7 @@ Newest releases first. For the Home Assistant App Store release notes, see [HA c
 
 ### Shared / Docker
 - Shared application behavior unchanged; standalone image continues to run as UID/GID 1000.
-- Both architectures and both installation modes built successfully in [CI run 45418684969](https://github.com/sin7ek/open-heatpump-analytics/actions/runs/45418684969).
+- Both architectures and both installation modes built successfully in [CI run 45418684969](https://github.com/sin7ek/OHPA/actions/runs/45418684969).
 
 ### Home Assistant
 - Fixed persistent SQLite startup permissions and explicit startup command.

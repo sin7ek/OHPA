@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.7
+
+- Repository renamed to `sin7ek/OHPA`; canonical links updated.
+- CI publishes short Docker and HA image aliases alongside existing names.
+- Existing HA slug, configured HA image, database paths and analytics unchanged.
+- New package public visibility and existing HA repository redirect/update behavior require verification.
+
 ## 0.4.6
 
 ### Shared

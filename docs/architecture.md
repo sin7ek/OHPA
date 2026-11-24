@@ -37,3 +37,5 @@ Docker mode uses Basic auth, custom write header for local configuration, and op
 The v0.4.4 workflow passed on GitHub Actions (run 45416452335). No real Supervisor validation or ARM execution is established by that run.
 
 The HA app changelog is read from ohpa/CHANGELOG.md by Supervisor, not from the repository root. v0.4.5 CI succeeded (run 45418684969), including both image publications and the simulated root-owned storage test.
+
+Repository rename: the same builds publish original and short GHCR names. The HA app continues using its original image reference until short package visibility is verified. Preserve existing app slug and storage.

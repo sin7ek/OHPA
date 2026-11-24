@@ -1,6 +1,6 @@
 # OHPA — living development document
 
-Updated 2026-11-24 · baseline v0.4.6 · [roadmap](../ROADMAP.md).
+Updated 2026-11-24 · baseline v0.4.7 · [roadmap](../ROADMAP.md).
 Purpose: handoff between development sessions; update on each substantive change. Distinguish implemented, verified, proposed and blocked. No dates promised.
 
 ## Product principles
@@ -72,3 +72,6 @@ HA app v0.4.4 repeatedly failed opening /data/analytics.sqlite at startup (502).
 
 ## v0.4.6 — release notes
 Maintain root CHANGELOG.md for shared/Docker releases and ohpa/CHANGELOG.md for HA update UI. Include shared changes in both. CI requires exact current version headings in both before publication. v0.4.5 CI 45418684969 succeeded; actual HA changelog display and v0.4.6 build still require verification. No runtime changes in this release.
+
+## v0.4.7 — repository rename
+Confirmed canonical GitHub repository sin7ek/OHPA. Preserve old GHCR tags in CI; add short aliases. Keep HA image reference and slug unchanged until anonymous pull and real Supervisor upgrade verified. Check public package visibility and update from existing repository URL; never delete existing app to migrate. CI pending; no analytic changes.
