@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from core import *
 import collector
+import profiles
 
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
 if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
@@ -102,6 +103,21 @@ def cfg():return {'config':config(),'roles':{k:{'label':v[0],'unit':v[1],'mode':
 def ent():
     try:return collector.entities()
     except Exception as e:raise HTTPException(502,str(e)[:250])
+@app.post('/api/profile-preview')
+async def profile_preview(request:Request):
+    raw=await request.json()
+    try:return profiles.proposals(raw['profile'],raw['prefix'],collector.entities(),raw.get('existing',{}),raw.get('model','generic'))
+    except (ValueError,KeyError,TypeError) as e:raise HTTPException(400,str(e))
+    except Exception as e:raise HTTPException(502,str(e)[:250])
+@app.post('/api/language')
+async def language(request:Request):
+    raw=await request.json()
+    if raw.get('language') not in ('nl','en'):raise HTTPException(400,'Invalid language')
+    with db() as conn:
+        row=conn.execute('SELECT body FROM config WHERE id=1').fetchone()
+        value=json.loads(row[0]);value['language']=raw['language']
+        conn.execute('UPDATE config SET body=? WHERE id=1',(json.dumps(value),))
+    return {'ok':True}
 @app.get('/api/status')
 def status():
     c=config();m=mapping(c);return {'collector':getmeta('collector',{}),'series':{k:{'last_collected':local_iso(e) if (e:=series_end(series_id(k,v))) else None,'source':v.get('source','HA')} for k,v in m.items()},'now':local_iso(now())}
@@ -115,6 +131,8 @@ async def update(request:Request):
             if m['unit'] not in ROLES[k][4]:raise ValueError('Invalid unit for '+k)
             if not isinstance(m['entity'],str) or len(m['entity'])>250 or '.' not in m['entity']:raise ValueError('Invalid entity ID')
             c['mapping'][k]={'entity':m['entity'],'attribute':str(m.get('attribute',''))[:100],'unit':m['unit'],'on_value':str(m.get('on_value','on'))[:100]}
+        if c['language'] not in ('nl','en') or c['model'] not in profiles.MODELS or c['integration_profile'] not in ('manual',*profiles.PROFILES):raise ValueError('Invalid installation profile')
+        c['entity_prefix']=str(c['entity_prefix'])[:100]
         if any(c[k] not in FLOW_PROFILES for k in ('flow_profile','reference_flow_profile')):raise ValueError('Invalid flow meter profile')
         primary=c['mapping'].get('flow') or c['mapping'].get('flow_counter');reference=c['mapping'].get('reference_flow') or c['mapping'].get('reference_flow_counter')
         if primary and reference and (primary['entity'],primary['attribute'])==(reference['entity'],reference['attribute']):raise ValueError('Primary and reference must be distinct measurements')

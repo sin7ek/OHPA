@@ -54,7 +54,7 @@ ROLES={
  'heating':('Space heating active (not DHW/cooling)','on/off','expert',False,['on/off']),
 }
 REGIONAL={'humidity':'relative_humidity_2m','dewpoint':'dew_point_2m','solar':'shortwave_radiation','wind':'wind_speed_10m','outside':'temperature_2m'}
-DEFAULT={'flow_profile':'manual','reference_flow_profile':'manual','mapping':{},'buh_mode':'unknown','buh_thermal':'unknown','heat_only':False,'max_hz':90,'hz_threshold':89,'water_factor':1.163,'backfill_days':3,'poll_seconds':120,'counter_max_gap':300,'regional':{'enabled':False,'latitude':None,'longitude':None},'notes':''}
+DEFAULT={'language':'nl','model':'generic','integration_profile':'manual','entity_prefix':'','flow_profile':'manual','reference_flow_profile':'manual','mapping':{},'buh_mode':'unknown','buh_thermal':'unknown','heat_only':False,'max_hz':90,'hz_threshold':89,'water_factor':1.163,'backfill_days':3,'poll_seconds':120,'counter_max_gap':300,'regional':{'enabled':False,'latitude':None,'longitude':None},'notes':''}
 
 def parse_time(s):
     if isinstance(s,(int,float)): return float(s)
@@ -235,6 +235,7 @@ def metrics(cfg,a,b):
     # If separately metered and outside the heat measurement boundary, resistive heat approximated at 1 W/W.
     if thermal_mode=='outside' and mode=='separate':q_system=q+buh
     elif thermal_mode=='inside' or mode=='none':q_system=q
+    elif thermal_mode=='unknown' and mode=='separate':q_system=np.where(buh==0,q,np.nan)
     else:q_system=nan
     # COP only based on synchronized, mutually observed thermal and electrical samples.
     match=valid(q_system)&valid(pel)&(pel>=0)
@@ -263,7 +264,7 @@ def metrics(cfg,a,b):
     if 'flow' not in mapping(cfg) and 'flow_counter' in mapping(cfg):summary['warnings'].append('Flow derived from successive cumulative readings; resets and long gaps excluded.')
     if cover(q)<95:summary['warnings'].append('Thermal coverage below 95%; energy is observed partial energy, not extrapolated.')
     if summary['cop_coverage_pct']<95:summary['warnings'].append('System COP coverage below 95% or system boundary not configured.')
-    if mode=='unknown' or thermal_mode=='unknown':summary['warnings'].append('Confirm BUH metering and thermal boundary; system COP may be unavailable.')
+    if mode=='unknown' or (thermal_mode=='unknown' and mode!='none' and not (mode=='separate' and np.all(~valid(q)|(valid(buh)&(buh==0))))):summary['warnings'].append('Confirm BUH metering and thermal boundary; system COP may be unavailable.')
     if not cfg['heat_only'] and 'heating' not in x:summary['warnings'].append('Confirm heating-only operation or map a space-heating status; complete space-heating metrics unavailable.')
     elif not cfg['heat_only']:summary['warnings'].append('Space-heating mode selected: energy and COP exclude intervals not marked as heating or defrost. Coverage is relative to the entire window.')
     if mode=='separate' and thermal_mode=='outside':summary['warnings'].append('BUH outside thermal measurement: assumed resistance heater 1 W heat/W input.')
