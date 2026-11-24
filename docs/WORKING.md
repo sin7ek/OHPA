@@ -1,10 +1,15 @@
 # OHPA — living development document
 
-Updated 2026-11-24 · baseline v0.4.7 · [roadmap](../ROADMAP.md).
+Updated 2026-11-24 · release candidate v0.4.8 (baseline v0.4.7) · [roadmap](../ROADMAP.md).
 Purpose: handoff between development sessions; update on each substantive change. Distinguish implemented, verified, proposed and blocked. No dates promised.
 
 ## Product principles
 Local analytics; HA read-only; vendor neutral; manual configuration always possible; optional dwelling/room/MCP features; measured, estimated and unknown never conflated; no silent defaults that imply precision; common Docker and HA app release; no automatic heat pump control.
+
+## Visual identity (v0.4.8)
+- One OHPA identity for both distributions: original full-name SVG, OHPA wordmark, shared icon, theme tokens, chart line patterns and native HA PNG assets.
+- Acceptance: check README on light/dark GitHub, desktop/mobile web header, light/dark charts and contrast, standalone and Ingress asset loading, and native app-store icon/logo after repository refresh.
+- Keep technical identifiers and existing configuration intact. GitHub social preview is a separate repository settings operation. CI and real HA visual verification are pending.
 
 ## Current evidence
 - v0.4.2, v0.4.3 and v0.4.4 CI succeeded. v0.4.4 native Docker smoke and AMD64/ARM64 publish succeeded. Real HA app runtime, ARM runtime, ingress auth and migration unverified.

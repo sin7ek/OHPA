@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.8
+
+**Visual Identity & Branding**
+
+- Native OHPA icon and logo for the App Store and app details.
+- New shared OHPA header, browser icon, automatic light/dark styling, chart colors and line patterns.
+- Same web interface as Docker; no changes to analytics, configuration, database, or permissions. Existing image name and slug retained.
+
 ## 0.4.7
 
 - Repository renamed to `sin7ek/OHPA`; canonical links updated.

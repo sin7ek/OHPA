@@ -1,10 +1,11 @@
 # OHPA roadmap
 
-Status as of 2026-11-24. Priorities are proposals, not commitments or dates. See [working document](docs/WORKING.md) for actionable acceptance criteria. Current release v0.4.7. Keep manual configuration, manufacturer independence and both distributions throughout.
+Status as of 2026-11-24. Priorities are proposals, not commitments or dates. See [working document](docs/WORKING.md) for actionable acceptance criteria. Release candidate v0.4.8 (previous release v0.4.7). Keep manual configuration, manufacturer independence and both distributions throughout.
 
 | Milestone | Scope | Status |
 |---|---|---|
 | v0.4.x | Room registry, descriptive dynamics, fan assistance, performance, shared app packaging | Implemented; HA app field test pending |
+| v0.4.8 | Visual identity, native HA artwork, shared light/dark theme and chart styling | Implemented in release candidate; CI and field validation pending |
 | v0.4.x stabilization | Supervisor/ARM validation, authentication tests, persistence, configuration UX, localization, docs, historical scan diagnostics | Next / P0 |
 | v0.5 | Room comparison graphs, occupied comfort, paired moisture/CO₂/fan analysis; optional room aggregation | Planned / P1 |
 | v0.6 | Dynamic dwelling and multi-zone model; directional weather and physically interpretable heat-loss modelling | Planned / P1 |

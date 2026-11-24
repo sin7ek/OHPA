@@ -2,3 +2,20 @@
 
 .metric .period { margin-top:.65rem; padding-top:.5rem; border-top:1px solid currentColor; font-size:.72rem; line-height:1.45; overflow-wrap:anywhere; opacity:.85; }
 .metric .period strong { font-size:.8rem; }
+
+/* OHPA brand tokens override the legacy palette for both distributions. */
+:root{--bg:var(--ohpa-bg);--panel:var(--ohpa-panel);--text:var(--ohpa-text);--muted:var(--ohpa-muted);--line:var(--ohpa-line);--accent:var(--ohpa-action);--accent2:var(--ohpa-chart-heat);--soft:var(--ohpa-soft);--warn:var(--ohpa-warn-bg);--warntext:var(--ohpa-warn-text);--shadow:var(--ohpa-shadow)}
+body{font-family:var(--ohpa-font)}
+header{border-top:3px solid var(--ohpa-cyan);gap:16px;flex-wrap:wrap}
+.brand{min-width:0}
+.brand .logo{display:block;flex:0 0 48px;width:48px;height:48px;background:none;border-radius:10px;object-fit:contain}
+.brand strong{line-height:1.25;display:block}
+.brand small{font-size:12px}
+button{color:var(--ohpa-action-text)}
+button.secondary,nav button.active,.pill{color:var(--ohpa-highlight)}
+.pill.error{color:var(--warntext)}
+:where(button,input,select,textarea,a):focus-visible{outline:2px solid var(--ohpa-focus);outline-offset:3px}
+.metric,.panel{border-radius:var(--ohpa-radius)}
+.metric .value{font-variant-numeric:tabular-nums}
+.legend i{width:20px;height:0;border-top:3px solid;border-radius:0;vertical-align:middle}
+@media(max-width:560px){header{gap:12px}.brand{flex-basis:100%}.brand strong{font-size:16px}.brand .logo{flex-basis:40px;width:40px;height:40px}}

@@ -1,0 +1,56 @@
+/* OHPA visual identity: shared by Docker and HA Ingress. */
+:root {
+  --ohpa-navy: #0B3A6E;
+  --ohpa-cyan: #00B3E6;
+  --ohpa-teal: #14B8A6;
+  --ohpa-orange: #FF7A45;
+  --ohpa-ice: #E8F6FF;
+  --ohpa-midnight: #0B2038;
+  --ohpa-font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ohpa-mono: "JetBrains Mono", ui-monospace, monospace;
+  --ohpa-radius: 12px;
+  --ohpa-bg: #F0F6FA;
+  --ohpa-panel: #FFFFFF;
+  --ohpa-text: #0B2038;
+  --ohpa-muted: #475E73;
+  --ohpa-line: #CDDCE6;
+  --ohpa-action: #0B3A6E;
+  --ohpa-action-text: #FFFFFF;
+  --ohpa-soft: #E8F6FF;
+  --ohpa-highlight: #087F83;
+  --ohpa-warn-bg: #FFF4DF;
+  --ohpa-warn-text: #80400D;
+  --ohpa-focus: #087F83;
+  --ohpa-chart-heat: #B34C1C;
+  --ohpa-chart-electric: #0B3A6E;
+  --ohpa-chart-indoor: #5363A6;
+  --ohpa-chart-outdoor: #526778;
+  --ohpa-chart-return: #007AA2;
+  --ohpa-chart-efficiency: #087F83;
+  --ohpa-chart-secondary: #7953A0;
+  --ohpa-shadow: 0 2px 8px #0B20380D;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ohpa-bg: #0B2038;
+    --ohpa-panel: #132C45;
+    --ohpa-text: #F2F8FF;
+    --ohpa-muted: #B1C6D8;
+    --ohpa-line: #37516B;
+    --ohpa-action: #73D9ED;
+    --ohpa-action-text: #0B2038;
+    --ohpa-soft: #203F58;
+    --ohpa-highlight: #64DFCF;
+    --ohpa-warn-bg: #49301D;
+    --ohpa-warn-text: #FFD3A5;
+    --ohpa-focus: #64DFCF;
+    --ohpa-chart-heat: #FF9A65;
+    --ohpa-chart-electric: #8FBBFF;
+    --ohpa-chart-indoor: #B3B9FF;
+    --ohpa-chart-outdoor: #C0D1DE;
+    --ohpa-chart-return: #65D9F0;
+    --ohpa-chart-efficiency: #58DCCA;
+    --ohpa-chart-secondary: #D7B3F8;
+    --ohpa-shadow: none;
+  }
+}

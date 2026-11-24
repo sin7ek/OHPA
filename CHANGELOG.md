@@ -2,6 +2,19 @@
 
 Newest releases first. For the Home Assistant App Store release notes, see [HA changelog](ohpa/CHANGELOG.md). Both distributions share the same release number.
 
+## 0.4.8
+
+**Visual Identity & Branding**
+
+### Shared / Docker
+- Adopt the OHPA heat-pump, thermal circulation and analytics mark, with full-name and abbreviated SVG variants for light and dark surfaces.
+- Use a shared self-contained web theme, branded header and favicon, accessible contrast-oriented chart colors and distinct line patterns; preserve existing views, calculations, authentication and database schema.
+- Document color semantics and reusable design tokens. No external font or image requests.
+
+### Home Assistant
+- Add native app-store icon and logo PNGs in the app directory.
+- Use the same web assets and relative Ingress paths as standalone Docker. Preserve app slug and configured image name.
+
 ## 0.4.7
 
 - Repository renamed to `sin7ek/OHPA`; canonical links updated.

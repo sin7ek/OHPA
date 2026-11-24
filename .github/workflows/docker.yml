@@ -2,6 +2,8 @@ name: Test and publish Docker
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -48,6 +50,7 @@ jobs:
           docker logs ohpa-ha
           exit 1
       - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -65,7 +68,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           build-args: OHPA_REVISION=${{ github.sha }}
           tags: |
             ghcr.io/sin7ek/open-heatpump-analytics:latest
@@ -80,7 +83,7 @@ jobs:
           context: .
           target: ha_app
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           build-args: OHPA_REVISION=${{ github.sha }}
           tags: |
             ghcr.io/sin7ek/open-heatpump-analytics-ha:${{ env.OHPA_VERSION }}
