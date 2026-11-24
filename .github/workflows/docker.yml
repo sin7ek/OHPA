@@ -1,0 +1,39 @@
+name: Test and publish Docker
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q tests
+      - run: node --check static/app.js
+      - run: docker build -t ohpa:test .
+      - name: Smoke test container
+        run: |
+          docker run -d --name ohpa -p 127.0.0.1:8095:8095 -e ADMIN_PASSWORD=ci-only-password-123456 -e MCP_SECRET=ci-only-mcp-secret-123456789 ohpa:test
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8095/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs ohpa
+          exit 1
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker tag ohpa:test ghcr.io/sin7ek/open-heatpump-analytics:latest
+          docker tag ohpa:test ghcr.io/sin7ek/open-heatpump-analytics:${GITHUB_SHA}
+          docker push ghcr.io/sin7ek/open-heatpump-analytics:latest
+          docker push ghcr.io/sin7ek/open-heatpump-analytics:${GITHUB_SHA}
