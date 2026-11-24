@@ -76,4 +76,18 @@ def test_scenario_off_and_unknown():
     p=building.normalize({'simple_estimate':'medium','surfaces':[{'id':'r','kind':'roof','boundary':'outside','area':60,'insulation':'unknown'}]})
     assert building.estimate(p)['transmission_w_per_k'] is None
     p['simple_estimate']='off'
-    assert building.estimate(p)['whole_dwelling_scenario_w_per_k'] is None
+    assert building.estimate(p,'expert')['whole_dwelling_scenario_w_per_k'] is None
+
+def test_levels_auto_scenario_and_expert_exact():
+    p=building.normalize({'floor_area':150,'volume':449.65,'ventilation':'natural_local','air_exchange':{'mode':'ach','ach':.5},'surfaces':[{'id':'r','kind':'roof','boundary':'outside','area':60.23},{'id':'e','kind':'roof','boundary':'outside','area':24}]})
+    basic=building.estimate(p,'basic')
+    assert basic['whole_dwelling_scenario_w_per_k']==[150,270,450]
+    assert basic['missing_components']==[]
+    extended=building.estimate(p,'extended')
+    assert extended['transmission_w_per_k']==pytest.approx(84.23*.45)
+    assert extended['known_surfaces']==2
+    assert 'bridges' not in extended['missing_components']
+    expert=building.estimate(p,'expert')
+    assert expert['transmission_w_per_k'] is None
+    assert expert['whole_dwelling_scenario_w_per_k'] is None
+    assert 'bridges' in expert['missing_components']

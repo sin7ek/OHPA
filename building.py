@@ -104,8 +104,15 @@ U_SCENARIOS={
 # Whole dwelling illustrative scenarios per heated floor area; include air losses.
 # Independent of component calculation; never added to it.
 FLOOR_SCENARIOS={'low':(2,3.5,5),'medium':(1,1.8,3),'high':(.5,.9,1.5)}
-def estimate(p):
+def estimate(p, level=None):
+    level=level or p.get('ui_level','basic')
+    if level not in ('basic','extended','expert'):raise ValueError('Invalid calculation level')
     rows=[];missing=[];total=0.;known=0;estimated_count=0;range_low=range_high=0.;scenario=p.get('simple_estimate','off')
+    scenario_source='explicit'
+    if level!='expert' and scenario=='off':
+        scenario=p.get('insulation') if p.get('insulation') in FLOOR_SCENARIOS else 'medium'
+        scenario_source='profile_insulation' if p.get('insulation') in FLOOR_SCENARIOS else 'illustrative_default'
+    if level=='expert':scenario='off';scenario_source='exact_only'
     surfaces=p.get('surfaces',[]);by={s['id']:s for s in surfaces}
     for s in surfaces:
         parent=by.get(s['parent']);boundary=parent['boundary'] if parent else s['boundary'];factor=parent['factor'] if parent else s['factor']
@@ -160,4 +167,8 @@ def estimate(p):
     floor=p.get('floor_area');whole=None
     if scenario in FLOOR_SCENARIOS and floor is not None and floor>0:
         whole=[round(floor*v,2) for v in FLOOR_SCENARIOS[scenario]]
-    return {'simple_estimate':scenario,'whole_dwelling_scenario_w_per_k':whole,'whole_dwelling_factor_w_m2k':list(FLOOR_SCENARIOS[scenario]) if scenario in FLOOR_SCENARIOS else None,'estimated_surface_count':estimated_count,'transmission_scenario_range_w_per_k':[range_low,range_high] if estimated_count else None,'heated_volume_m3':p.get('volume'),'air_exchange_mode':mode,'combined_air_exchange_w_per_k':combined,'air_exchange_range_w_per_k':bounds,'air_exchange_scenarios':scenarios,'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
+    if level=='basic':
+        missing_components=[] if whole is not None else ['floor_area']
+    elif level=='extended':
+        missing_components=[k for k in missing_components if k not in ('bridges','infiltration')]
+    return {'calculation_level':level,'scenario_source':scenario_source,'simple_estimate':scenario,'whole_dwelling_scenario_w_per_k':whole,'whole_dwelling_factor_w_m2k':list(FLOOR_SCENARIOS[scenario]) if scenario in FLOOR_SCENARIOS else None,'estimated_surface_count':estimated_count,'transmission_scenario_range_w_per_k':[range_low,range_high] if estimated_count else None,'heated_volume_m3':p.get('volume'),'air_exchange_mode':mode,'combined_air_exchange_w_per_k':combined,'air_exchange_range_w_per_k':bounds,'air_exchange_scenarios':scenarios,'missing_components':missing_components,'roof_areas_m2':[roof_area(item) for item in p.get('roof_calculations',[])],'volume_calculation':volume_calculation(p.get('volume_parts',[])),'status':'partial_estimate','surfaces':rows,'unknown_surfaces':missing,'known_surfaces':known,'surface_count':len(surfaces),'transmission_w_per_k':components[0],'bridges_w_per_k':components[1],'ventilation_w_per_k':ventilation,'infiltration_w_per_k':infiltration,'known_subtotal_w_per_k':sum(x for x in components if x is not None) if any(x is not None for x in components) else None,'warning':'Partial envelope estimate only; completeness not verified. Ground and adjoining spaces require explicit effective temperature factors. No automatic infiltration from n50/qv10. No certified design load.'}
