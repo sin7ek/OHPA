@@ -75,3 +75,5 @@ Reorganized user, installation, optional MCP, methodology, architecture, working
 
 ## v0.4.5 — HA persistent storage startup fix
 Address SQLite unable to open database on Supervisor-managed /data. Dedicated HA image target prepares directory and known SQLite files then drops privileges; standalone image stays non-root. Add root-owned storage smoke test, restart and direct-access rejection. Real HA confirmation pending.
+
+Pre-publication correction: explicitly set HA CMD after ENTRYPOINT and provide fallback arguments. The first v0.4.5 build failed before publishing, so the release version remains 0.4.5.

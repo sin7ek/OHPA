@@ -28,4 +28,7 @@ for file in /data/analytics.sqlite /data/analytics.sqlite-wal /data/analytics.sq
   fi
 done
 echo "OHPA: persistent database directory prepared; starting as UID 1000"
+if [ "$#" -eq 0 ]; then
+  set -- uvicorn app:app --host 0.0.0.0 --port 8095 --no-access-log --no-proxy-headers
+fi
 exec setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs "$@"

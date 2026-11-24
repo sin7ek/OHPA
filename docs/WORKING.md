@@ -67,3 +67,5 @@ Record commit/version, CI result/link, test environment and exact limitations; u
 
 ## v0.4.5 field issue
 HA app v0.4.4 repeatedly failed opening /data/analytics.sqlite at startup (502). Likely Supervisor mount ownership. Dedicated HA image startup prepares only /data and known database files, rejects symlinks, then drops to UID/GID 1000. Standalone remains unchanged. CI adds root-owned bind mount and restart smoke test plus direct ingress denial. Actual HA retest pending.
+
+- v0.4.5 first CI attempt (45418149627) failed with `setpriv: No program specified`: changing ENTRYPOINT clears inherited CMD. Explicit HA CMD and entrypoint default argv added. Standalone smoke test and Python/JS checks passed in the failed run; HA retest and publication pending.

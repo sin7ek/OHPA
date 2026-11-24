@@ -24,5 +24,6 @@ USER root
 COPY ha-entrypoint.sh /usr/local/bin/ha-entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends util-linux && rm -rf /var/lib/apt/lists/* && chmod 755 /usr/local/bin/ha-entrypoint
 ENTRYPOINT ["/usr/local/bin/ha-entrypoint"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8095", "--no-access-log", "--no-proxy-headers"]
 
 FROM runtime AS standalone
