@@ -296,21 +296,26 @@ def hourly(cfg,a,b):
 
 def heat_loss(cfg,a,b):
     """Exploratory steady-state model, not EN12831 design sizing."""
-    rows=hourly(cfg,a,b);used=[]
+    rows=hourly(cfg,a,b);used=[];rejected={'partial_hour':0,'thermal_or_boundary_coverage':0,'temperature_coverage':0,'small_delta_t':0,'no_adjacent_hour':0,'indoor_temperature_change':0,'other_heat_coverage':0}
     for h in rows:
         m=h['means'];q=h['system_thermal_kwh'];n=h['hours']
-        if not n or n<0.99 or q is None or h['thermal_coverage_pct']<95 or h['cop_coverage_pct']<95:continue
-        if any(m.get(k) is None or h['coverage_pct'].get(k,0)<95 for k in ('inside','outside')):continue
-        if m['inside']-m['outside']<5:continue
+        if not n or n<0.99:rejected['partial_hour']+=1;continue
+        if q is None or h['thermal_coverage_pct']<95 or h['cop_coverage_pct']<95:rejected['thermal_or_boundary_coverage']+=1;continue
+        if any(m.get(k) is None or h['coverage_pct'].get(k,0)<95 for k in ('inside','outside')):rejected['temperature_coverage']+=1;continue
+        if m['inside']-m['outside']<5:rejected['small_delta_t']+=1;continue
+        if 'other_heat' in mapping(cfg) and (m.get('other_heat') is None or h['coverage_pct'].get('other_heat',0)<95):rejected['other_heat_coverage']+=1;continue
         # Compare adjacent hourly inside means to screen thermal storage transients.
         used.append((h,m,q/n))
     filtered=[]
+    if used:rejected['no_adjacent_hour']+=1
     for i in range(1,len(used)):
         h,m,q=used[i];prev,pm,_=used[i-1]
-        if abs(parse_time(h['start'])-parse_time(prev['end']))>1 or abs(m['inside']-pm['inside'])>0.15:continue
+        if abs(parse_time(h['start'])-parse_time(prev['end']))>1:rejected['no_adjacent_hour']+=1;continue
+        if abs(m['inside']-pm['inside'])>0.15:rejected['indoor_temperature_change']+=1;continue
         if m.get('other_heat') is not None:q+=m['other_heat']/1000
         filtered.append((m,q,h))
-    if len(filtered)<24:return {'status':'insufficient_data','hours':len(filtered),'minimum_hours':24,'warning':'Need at least 24 nearly steady, covered heating hours. Confirm BUH boundary and other heat sources.'}
+    diagnostics={'total_hour_bins':len(rows),'rejected':rejected,'minimum_hours':24,'minimum_delta_t_span_c':4,'start':local_iso(a),'end':local_iso(b),'analysis_hours':r((b-a)/3600,3)}
+    if len(filtered)<24:return {**diagnostics,'status':'insufficient_data','hours':len(filtered),'minimum_hours':24,'warning':'Need at least 24 nearly steady, covered heating hours. Confirm BUH boundary and other heat sources.'}
     delta=np.array([m['inside']-m['outside'] for m,q,h in filtered]);y=np.array([q for m,q,h in filtered]);features=['delta_t'];columns=[delta]
     # include weather covariates only when every selected hour is observed; report their role, not causal claims.
     solar_proxy=next((k for k in ('solar','illuminance','pv') if all(m.get(k) is not None and h['coverage_pct'].get(k,0)>=95 for m,q,h in filtered) and np.std([m[k] for m,q,h in filtered])>1e-8),None)
@@ -318,11 +323,11 @@ def heat_loss(cfg,a,b):
         if all(m.get(k) is not None and h['coverage_pct'].get(k,0)>=95 for m,q,h in filtered):
             col=np.array([m[k] for m,q,h in filtered]);
             if np.std(col)>1e-8:columns.append(col);features.append(k)
-    if np.ptp(delta)<4:return {'status':'insufficient_temperature_range','hours':len(filtered),'delta_t_span_c':r(np.ptp(delta))}
+    if np.ptp(delta)<4:return {**diagnostics,'status':'insufficient_temperature_range','hours':len(filtered),'delta_t_span_c':r(np.ptp(delta))}
     X=np.column_stack([np.ones(len(delta))]+columns);coef,res,rank,s=np.linalg.lstsq(X,y,rcond=None);pred=X@coef
-    if rank<X.shape[1] or coef[1]<=0:return {'status':'unstable_model','hours':len(filtered),'warning':'Regression cannot identify a positive heat-loss slope.'}
+    if rank<X.shape[1] or coef[1]<=0:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'warning':'Regression cannot identify a positive heat-loss slope.'}
     rmse=np.sqrt(np.mean((y-pred)**2));den=np.sum((y-y.mean())**2)
-    return {'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':r(coef[1]*1000,1),'intercept_kw':r(coef[0]),'features':features,'coefficients':{k:r(z,6) for k,z in zip(features,coef[1:])},'rmse_kw':r(rmse),'r2':r(1-np.sum((y-pred)**2)/den) if den>0 else None,'delta_t_range_c':[r(delta.min()),r(delta.max())],'warning':'Observational steady-hour regression; internal gains, thermal mass, solar, ventilation and missing other heating can bias slope. Not a certified design load or guaranteed bivalence point.'}
+    return {**diagnostics,'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':r(coef[1]*1000,1),'intercept_kw':r(coef[0]),'features':features,'coefficients':{k:r(z,6) for k,z in zip(features,coef[1:])},'rmse_kw':r(rmse),'r2':r(1-np.sum((y-pred)**2)/den) if den>0 else None,'delta_t_range_c':[r(delta.min()),r(delta.max())],'warning':'Observational steady-hour regression; internal gains, thermal mass, solar, ventilation and missing other heating can bias slope. Not a certified design load or guaranteed bivalence point.'}
 
 def weather_defrost(cfg,a,b):
     """Observed exposure in outdoor-temperature bins, with measured RH and signed thermal losses."""
@@ -334,7 +339,7 @@ def weather_defrost(cfg,a,b):
         def mean(y):
             v=ok&np.isfinite(y);return r(np.sum(y[v]*d[v])/d[v].sum(),2) if v.any() else None
         active=both&(df==1);negative=active&np.isfinite(heat)
-        rows.append({'outside_range_c':[None if lo==-100 else lo,None if hi==100 else hi],'exposure_hours':r(d[ok].sum()/3600,3),'defrost_coverage_pct':r(d[both].sum()/d[ok].sum()*100,2),'defrost_pct_observed':r(d[active].sum()/d[both].sum()*100,2) if both.any() else None,'negative_heat_kwh':r(np.sum(np.minimum(heat[negative],0)*d[negative])/3.6e6,4) if negative.any() else None,'rh_mean_pct':mean(rh),'wind_mean_ms':mean(x.get('wind',nan)),'solar_mean_wm2':mean(x.get('solar',nan)),'dewpoint_mean_c':mean(dew),'coil_minus_dewpoint_c':mean(evap-dew),'illuminance_mean_lx':mean(x.get('illuminance',nan)),'wind_gust_mean_ms':mean(x.get('wind_gust',nan)),'rain_rate_mean_mmh':mean(x.get('rain_rate',nan)),'wet_pct_observed':(r(100*mean(x.get('wet',nan)),2) if mean(x.get('wet',nan)) is not None else None),'weather_temperature_mean_c':mean(x.get('weather_temperature',nan)),'air_pressure_mean_hpa':mean(x.get('air_pressure',nan))})
+        rows.append({'outside_range_c':[None if lo==-100 else lo,None if hi==100 else hi],'exposure_hours':r(d[ok].sum()/3600,3),'defrost_coverage_pct':r(d[both].sum()/d[ok].sum()*100,2),'defrost_pct_observed':r(d[active].sum()/d[both].sum()*100,2) if both.any() else None,'defrost_minutes':r(d[active].sum()/60,3) if both.any() else None,'defrost_thermal_coverage_pct':r(d[negative].sum()/d[active].sum()*100,2) if active.any() else None,'negative_heat_kwh':r(np.sum(np.minimum(heat[negative],0)*d[negative])/3.6e6,4) if negative.any() else (0 if both.any() and not active.any() else None),'rh_mean_pct':mean(rh),'wind_mean_ms':mean(x.get('wind',nan)),'solar_mean_wm2':mean(x.get('solar',nan)),'dewpoint_mean_c':mean(dew),'coil_minus_dewpoint_c':mean(evap-dew),'illuminance_mean_lx':mean(x.get('illuminance',nan)),'wind_gust_mean_ms':mean(x.get('wind_gust',nan)),'rain_rate_mean_mmh':mean(x.get('rain_rate',nan)),'wet_pct_observed':(r(100*mean(x.get('wet',nan)),2) if mean(x.get('wet',nan)) is not None else None),'weather_temperature_mean_c':mean(x.get('weather_temperature',nan)),'air_pressure_mean_hpa':mean(x.get('air_pressure',nan))})
     return {'start':local_iso(a),'end':local_iso(b),'bins':rows,'warning':'Descriptive association only, not evidence of causality. A coil sensor is a proxy for surface temperature; a negative coil–dew point margin indicates potential condensation, not measured icing. Regional model weather is not an on-site measurement.'}
 
 def latest_measurements(cfg):

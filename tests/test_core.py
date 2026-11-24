@@ -116,3 +116,18 @@ def test_comfort_inclusive_band_and_time_weighting(cfg):
     assert s['comfort_above_band_pct']==25
     assert s['comfort_below_band_pct']==0
     assert s['comfort_mean_deficit_c']==0.25
+
+def test_heat_loss_rejection_accounting(cfg):
+    baseline(cfg)
+    s=core.heat_loss(cfg,0,3600)
+    assert s['status']=='insufficient_data'
+    assert s['total_hour_bins']==1
+    assert s['rejected']['no_adjacent_hour']==1
+    assert s['hours']+sum(s['rejected'].values())==s['total_hour_bins']
+
+def test_weather_defrost_minutes_and_coverage(cfg):
+    baseline(cfg)
+    add(cfg,'defrost',[(0,1),(600,0)])
+    row=core.weather_defrost(cfg,0,3600)['bins'][0]
+    assert row['defrost_minutes']==10
+    assert row['defrost_thermal_coverage_pct']==100
