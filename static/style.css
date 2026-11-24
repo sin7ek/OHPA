@@ -2,3 +2,7 @@
 
 .metric .period { margin-top:.65rem; padding-top:.5rem; border-top:1px solid currentColor; font-size:.72rem; line-height:1.45; overflow-wrap:anywhere; opacity:.85; }
 .metric .period strong { font-size:.8rem; }
+
+/* Visual identity: shared standalone and HA ingress header. */
+.brand .logo{display:block;flex:0 0 44px;width:44px;height:44px;background:none;border-radius:10px;object-fit:contain}
+.metric .value{font-variant-numeric:tabular-nums}
