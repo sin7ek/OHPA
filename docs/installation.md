@@ -1,6 +1,6 @@
 # Installation
 
-Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.7 is pre-1.0; the HA app is experimental.
+Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.8 is pre-1.0; the HA app is experimental.
 
 ## Home Assistant OS
 
@@ -23,7 +23,7 @@ Use the following Compose/Portainer stack as a starting point (replace placehold
 ```yaml
 services:
   ohpa:
-    image: ghcr.io/sin7ek/ohpa:0.4.7
+    image: ghcr.io/sin7ek/ohpa:0.4.8
     restart: unless-stopped
     ports:
       - "127.0.0.1:8095:8095"
