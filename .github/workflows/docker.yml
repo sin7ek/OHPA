@@ -17,7 +17,7 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - run: python -m pytest -q tests
       - run: node --check static/app.js && node --check static/building.js
-      - run: docker build -t ohpa:test .
+      - run: docker build --build-arg OHPA_REVISION=${GITHUB_SHA} -t ohpa:test .
       - name: Smoke test container
         run: |
           docker run -d --name ohpa -p 127.0.0.1:8095:8095 -e ADMIN_PASSWORD=ci-only-password-123456 -e MCP_SECRET=ci-only-mcp-secret-123456789 ohpa:test

@@ -90,7 +90,9 @@ async def lifespan(app):
     try:
         async with mcp.session_manager.run():yield
     finally:collector.STOP.set();collector.WAKE.set()
-app=FastAPI(title='HeatPump Analytics',lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
+VERSION=(Path(__file__).parent/'VERSION').read_text().strip()
+REVISION=os.getenv('OHPA_REVISION','unknown')
+app=FastAPI(title='HeatPump Analytics',version=VERSION,lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
 MCP_PATH='/mcp/'+MCP_SECRET
 app.mount(MCP_PATH,mcp_app)
 @app.middleware('http')
@@ -105,9 +107,13 @@ async def protect(request:Request,call_next):
     if request.method in ('POST','PUT','DELETE','PATCH') and request.headers.get('x-analytics-ui')!='1':return JSONResponse({'detail':'Missing UI request header'},status_code=403)
     response=await call_next(request);response.headers['Cache-Control']='no-store';response.headers['X-Content-Type-Options']='nosniff';response.headers['X-Frame-Options']='DENY';return response
 @app.get('/health')
-def health():return {'status':'ok'}
+def health():return {'status':'ok','version':VERSION,'revision':REVISION}
 @app.get('/')
-def index():return FileResponse(Path(__file__).parent/'static/index.html')
+def index():
+    from fastapi.responses import HTMLResponse
+    from html import escape
+    page=(Path(__file__).parent/'static/index.html').read_text()
+    return HTMLResponse(page.replace('__OHPA_VERSION__',escape(VERSION)).replace('__OHPA_REVISION__',escape(REVISION[:12])),headers={'Cache-Control':'no-store'})
 app.mount('/static',StaticFiles(directory=Path(__file__).parent/'static'),name='static')
 @app.get('/api/config')
 def cfg():return {'config':config(),'roles':{k:{'label':v[0],'unit':v[1],'mode':v[2],'required':v[3],'units':v[4]} for k,v in ROLES.items()},'timezone':str(TZ)}

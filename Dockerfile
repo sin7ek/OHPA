@@ -6,6 +6,10 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && groupadd -g 1000 analytics && useradd -u 1000 -g 1000 -M analytics
+ARG OHPA_REVISION=unknown
+ENV OHPA_REVISION=${OHPA_REVISION}
+LABEL org.opencontainers.image.revision=${OHPA_REVISION}
+COPY VERSION ./VERSION
 COPY *.py ./
 COPY static ./static
 RUN mkdir /data && chown 1000:1000 /data

@@ -1,4 +1,4 @@
-# HeatPump Analytics — v0.1.1 (prototype)
+# HeatPump Analytics — v0.3.0 (prototype)
 
 Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
 
@@ -158,3 +158,6 @@ Ventilation supports natural with local extract, separate or total outdoor excha
 Basic profile offers an explicitly selected illustrative whole-dwelling W/(m² heated floor area·K) scenario, including air exchange, independent of the component subtotal. Extended profile optionally uses broad illustrative U ranges per exterior surface; per-surface insulation overrides the scenario, explicit unknown disables it. Entered U or applicable Rc takes precedence. No automatic estimates for ground or other boundaries; no certification or population-calibrated defaults. Scenario ranges are assumptions, not confidence intervals. Expert values and existing profiles are preserved; scenarios are off by default.
 
 Calculation levels now differ: Basic uses whole-dwelling illustrative floor-area scenario only in UI; Extended uses surface scenarios when exact values are absent, without expert-only missing-data prompts; Expert uses explicit U/Rc only. Automatic scenarios use declared insulation or a visibly labelled medium example. Saved level controls API result; changing level requires save to refresh calculation. Estimates are not calibrated or certified.
+
+## v0.3.0 — dwelling and analytics update
+Dwelling profile levels, air exchange scenarios, optional CO₂ decay and local extract analysis, comfort metrics, regression diagnostics, grouped live sensors and newest-first defrost history. VERSION is the release version; every CI image additionally embeds its exact Git revision. Increment VERSION for subsequent releases; the footer and health endpoint read it automatically. The short revision identifies each build even between release bumps.
