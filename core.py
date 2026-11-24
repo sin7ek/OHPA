@@ -7,6 +7,9 @@ import numpy as np
 
 TZ=ZoneInfo(os.getenv('TZ','Europe/Amsterdam'))
 DATA=Path(os.getenv('DATA_DIR','/data'))
+FLOW_UNITS=['L/h','l/hr','L/min','L/s','m³/h','m³/min','m³/s']
+FLOW_PROFILES=('manual','aquaro','esphome','electropaultje','openquatt','generic_mqtt','modbus_mbus')
+COUNTER_ROLES=('flow_counter','reference_flow_counter')
 # canonical units and role descriptions. Power boundary is explicit in settings.
 ROLES={
  'inside':('Indoor temperature','°C','basic',True,['°C','°F','K']),
@@ -14,8 +17,10 @@ ROLES={
  'outside':('Outdoor temperature','°C','basic',True,['°C','°F','K']),
  'supply':('Supply water temperature','°C','basic',True,['°C','°F','K']),
  'return':('Return water temperature','°C','basic',True,['°C','°F','K']),
- 'flow':('Water flow rate','L/h','basic',True,['L/h','L/min','m³/h','m³/min']),
+ 'flow':('Water flow rate','L/h','basic',True,FLOW_UNITS),
  'flow_counter':('Cumulative water volume (alternative to flow)','L','basic',False,['L','m³']),
+ 'reference_flow':('Reference flow rate','L/h','expert',False,FLOW_UNITS),
+ 'reference_flow_counter':('Reference cumulative volume','L','expert',False,['L','m³']),
  'power':('Heat pump electrical input','W','basic',True,['W','kW']),
  'buh':('Separate backup heater electrical input','W','basic',False,['W','kW']),
  'frequency':('Compressor frequency','Hz','basic',False,['Hz']),
@@ -49,7 +54,7 @@ ROLES={
  'heating':('Space heating active (not DHW/cooling)','on/off','expert',False,['on/off']),
 }
 REGIONAL={'humidity':'relative_humidity_2m','dewpoint':'dew_point_2m','solar':'shortwave_radiation','wind':'wind_speed_10m','outside':'temperature_2m'}
-DEFAULT={'mapping':{},'buh_mode':'unknown','buh_thermal':'unknown','heat_only':False,'max_hz':90,'hz_threshold':89,'water_factor':1.163,'backfill_days':3,'poll_seconds':120,'counter_max_gap':300,'regional':{'enabled':False,'latitude':None,'longitude':None},'notes':''}
+DEFAULT={'flow_profile':'manual','reference_flow_profile':'manual','mapping':{},'buh_mode':'unknown','buh_thermal':'unknown','heat_only':False,'max_hz':90,'hz_threshold':89,'water_factor':1.163,'backfill_days':3,'poll_seconds':120,'counter_max_gap':300,'regional':{'enabled':False,'latitude':None,'longitude':None},'notes':''}
 
 def parse_time(s):
     if isinstance(s,(int,float)): return float(s)
@@ -82,7 +87,7 @@ def init():
         CREATE TABLE IF NOT EXISTS changes(t REAL PRIMARY KEY,note TEXT);''')
         c.execute('INSERT OR IGNORE INTO config VALUES(1,?)',(json.dumps(DEFAULT),))
 def config():
-    with db() as c: return json.loads(c.execute('SELECT body FROM config WHERE id=1').fetchone()[0])
+    with db() as c: return {**DEFAULT,**json.loads(c.execute('SELECT body FROM config WHERE id=1').fetchone()[0])}
 def save_config(v):
     with db() as c: c.execute('UPDATE config SET body=? WHERE id=1',(json.dumps(v),))
 def setmeta(k,v):
@@ -104,6 +109,8 @@ def convert(value,unit,role,on_value='on'):
     elif u=='k':x-=273.15
     elif u=='kw':x*=1000
     elif u=='l/min':x*=60
+    elif u=='l/s':x*=3600
+    elif u=='m3/s':x*=3600000
     elif u=='m3/h':x*=1000
     elif u=='m3/min':x*=60000
     elif u=='m3':x*=1000
@@ -118,7 +125,7 @@ def convert(value,unit,role,on_value='on'):
     elif u=='mpa':x*=10
     elif u=='psi':x*=0.0689476
     # Reject impossible measurements, rather than silently clipping.
-    if role in ('flow','flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure','illuminance','wind_gust','rain_rate','air_pressure') and x<0:return None
+    if role in ('flow','flow_counter','reference_flow','reference_flow_counter','frequency','wind','solar','pv','power','buh','other_heat','fan','eev','high_pressure','low_pressure','illuminance','wind_gust','rain_rate','air_pressure') and x<0:return None
     if role=='wind_direction' and not 0<=x<=360:return None
     if role=='wind_direction':x%=360
     if role=='humidity' and not 0<=x<=100:return None
@@ -176,19 +183,34 @@ def aligned(cfg,a,b):
     if b-a>32*86400:raise ValueError('Maximum analysis window is 32 days; choose smaller blocks.')
     m=mapping(cfg); data={}; edges=[np.array([a,b])]
     for k,v in m.items():
-        data[k]=load(series_id(k,v),a,b,k=='flow_counter');ts,vs,cov=data[k]
+        data[k]=load(series_id(k,v),a,b,k in COUNTER_ROLES);ts,vs,cov=data[k]
         edges.append(ts[(ts>a)&(ts<b)])
         for x,y in cov:edges.append(np.array([max(a,x),min(b,y)]))
     e=np.unique(np.concatenate(edges));t=e[:-1];duration=np.diff(e)
-    vals={k:interpolate_step(t,*d,k=='flow_counter',cfg['counter_max_gap']) for k,d in data.items()}
+    vals={k:interpolate_step(t,*d,k in COUNTER_ROLES,cfg['counter_max_gap']) for k,d in data.items()}
     # derive dew point using Magnus approximation only for co-observed outdoor T/RH
     if 'dewpoint' not in vals and ('weather_temperature' in vals or 'outside' in vals) and 'humidity' in vals:
         temp=vals.get('weather_temperature',vals.get('outside'));rh=vals['humidity'];g=np.log(np.maximum(rh,0.0001)/100)+17.62*temp/(243.12+temp)
         vals['dewpoint']=243.12*g/(17.62-g);vals['dewpoint'][(rh<=0)|~np.isfinite(temp)]=np.nan
     if 'flow' not in vals and 'flow_counter' in vals:vals['flow']=vals['flow_counter']
+    if 'reference_flow' not in vals and 'reference_flow_counter' in vals:vals['reference_flow']=vals['reference_flow_counter']
     return t,duration,vals
 
 def r(v,d=3):return round(float(v),d) if np.isfinite(v) else None
+def flow_comparison(t,d,x):
+    if 'reference_flow' not in x:return None
+    p=x.get('flow',np.full(t.shape,np.nan));q=x['reference_flow'];total=d.sum()
+    both=np.isfinite(p)&np.isfinite(q);delta=q-p
+    def stats(mask):
+        seconds=d[mask].sum()
+        if not seconds:return {'hours':0,'primary_lh':None,'reference_lh':None,'bias_lh':None,'mae_lh':None,'relative_bias_pct':None}
+        def mean(y):return r(np.sum(y[mask]*d[mask])/seconds)
+        positive=mask&(p>0)
+        denominator=np.sum(p[positive]*d[positive])
+        return {'hours':r(seconds/3600,4),'primary_lh':mean(p),'reference_lh':mean(q),'bias_lh':mean(delta),'mae_lh':mean(np.abs(delta)),'relative_bias_pct':r(100*np.sum(delta[positive]*d[positive])/denominator) if denominator>0 else None}
+    df=x.get('defrost',np.full(t.shape,np.nan))
+    return {**stats(both),'coverage_pct':r(100*d[both].sum()/total,2),'defrost':stats(both&(df==1)),'non_defrost':stats(both&(df==0)),'flow_bands':[{'min_lh':lo,'max_lh':hi,**stats(both&(p>=lo)&((p<hi) if hi is not None else True))} for lo,hi in [(0,500),(500,1000),(1000,1500),(1500,2000),(2000,None)]],'warning':'Reference minus primary; relative bias uses only positive primary flow and is volume-weighted. Recorder coverage does not prove MQTT measurement freshness. No calibration or automatic substitution.'}
+
 def metrics(cfg,a,b):
     t,d,x=aligned(cfg,a,b);total=b-a; nan=np.full(t.shape,np.nan)
     def v(k):return x.get(k,nan)
@@ -232,6 +254,7 @@ def metrics(cfg,a,b):
             cycles.append({'start':local_iso(t[i]),'end':local_iso(t[j]+d[j]),'minutes':r(ds.sum()/60,2),'negative_heat_kwh':r(neg,4) if neg is not None else None,'thermal_coverage_pct':r(ds[ok].sum()/ds.sum()*100,2),'start_observed':bool(i>0 and de[i-1]==0),'end_observed':bool(j+1<len(de) and de[j+1]==0)})
     deficit=np.maximum(v('target')-v('inside'),0)
     summary={'start':local_iso(a),'end':local_iso(b),'hours':r(total/3600,3),'means':{k:avg(y) for k,y in x.items()},'coverage_pct':{k:cover(y) for k,y in x.items()},'net_thermal_kwh':energy(q),'positive_thermal_kwh':energy(np.maximum(q,0)),'negative_thermal_kwh':energy(np.minimum(q,0)),'net_thermal_kw':(r(avg(q)/1000) if avg(q) is not None else None),'thermal_coverage_pct':cover(q),'electrical_input_kwh':energy(p),'buh_kwh':energy(buh) if mode=='separate' else (0 if mode=='none' else None),'system_electrical_kwh':energy(pel),'system_thermal_kwh':energy(q_system),'system_cop':r(e_q/e_p) if e_q is not None and e_p and e_p>0 else None,'cop_coverage_pct':r(d[match].sum()/total*100,2),'boundary_cop':r(hp_e_q/hp_e_p) if hp_e_q is not None and hp_e_p and hp_e_p>0 else None,'boundary_cop_coverage_pct':r(d[hp_match].sum()/total*100,2),'defrost_starts':starts if known.any() else None,'defrost_episodes':episodes if known.any() else None,'defrost_minutes':r(d[on].sum()/60,2) if known.any() else None,'defrost_pct_observed':r(d[on].sum()/d[known].sum()*100,2) if known.any() else None,'defrost_negative_kwh':energy(np.where(on,np.minimum(q,0),np.nan)) if known.any() else None,'compressor_high_pct_observed':r(d[valid(freq)&(freq>=cfg['hz_threshold'])].sum()/d[valid(freq)].sum()*100,2) if valid(freq).any() else None,'compressor_high_hours':hours(valid(freq)&(freq>=cfg['hz_threshold'])) if valid(freq).any() else None,'comfort_deficit_degree_hours':r(np.nansum(deficit*d)/3600) if valid(deficit).any() else None,'comfort_coverage_pct':cover(deficit),'reported_thermal_kwh':energy(v('thermal')),'weather_sources':{k:('regional model (hourly)' if m.get('source')=='regional' else 'HA entity: '+m['entity']) for k,m in mapping(cfg).items() if k in REGIONAL or k in ('weather_temperature','illuminance','wind_direction','wind_gust','rain_rate','wet','air_pressure','pv')},'cycles':cycles,'warnings':[]}
+    summary['flow_comparison']=flow_comparison(t,d,x)
     if 'wind_direction' in x:
         direction=v('wind_direction');ok=valid(direction)
         if ok.any():

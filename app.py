@@ -63,6 +63,10 @@ def get_weather_defrost_analysis(start:str|None=None,end:str|None=None,hours:flo
     """Read-only: observed defrost exposure and negative heat by outdoor temperature band, with humidity, dew point, wind and solar where mapped."""
     a,b=range_(start,end,hours);return weather_defrost(config(),a,b)
 @mcp.tool()
+def get_flow_comparison(start:str|None=None,end:str|None=None,hours:float=24)->dict:
+    """Read-only synchronized primary/reference flow comparison, by flow band and defrost status. No calibration or substitution."""
+    a,b=range_(start,end,hours);s=metrics(config(),a,b);return {'start':s['start'],'end':s['end'],'flow_comparison':s['flow_comparison']}
+@mcp.tool()
 def get_latest_measurements()->dict:
     """Read-only: latest locally collected sensor values with their individual timestamps; not a live HA request."""
     return latest_measurements(config())
@@ -111,6 +115,9 @@ async def update(request:Request):
             if m['unit'] not in ROLES[k][4]:raise ValueError('Invalid unit for '+k)
             if not isinstance(m['entity'],str) or len(m['entity'])>250 or '.' not in m['entity']:raise ValueError('Invalid entity ID')
             c['mapping'][k]={'entity':m['entity'],'attribute':str(m.get('attribute',''))[:100],'unit':m['unit'],'on_value':str(m.get('on_value','on'))[:100]}
+        if any(c[k] not in FLOW_PROFILES for k in ('flow_profile','reference_flow_profile')):raise ValueError('Invalid flow meter profile')
+        primary=c['mapping'].get('flow') or c['mapping'].get('flow_counter');reference=c['mapping'].get('reference_flow') or c['mapping'].get('reference_flow_counter')
+        if primary and reference and (primary['entity'],primary['attribute'])==(reference['entity'],reference['attribute']):raise ValueError('Primary and reference must be distinct measurements')
         if c['buh_mode'] not in ('unknown','separate','included','none') or c['buh_thermal'] not in ('unknown','inside','outside','none'):raise ValueError('Invalid BUH mode')
         c['heat_only']=bool(c['heat_only']);c['backfill_days']=int(c['backfill_days']);c['poll_seconds']=int(c['poll_seconds']);c['counter_max_gap']=int(c['counter_max_gap']);c['hz_threshold']=float(c['hz_threshold']);c['max_hz']=float(c['max_hz']);c['water_factor']=float(c['water_factor'])
         if not (1<=c['backfill_days']<=9 and 30<=c['poll_seconds']<=3600 and 30<=c['counter_max_gap']<=1800 and 0<c['hz_threshold']<=c['max_hz']<=300 and 0.5<=c['water_factor']<=1.5):raise ValueError('Configuration values out of range')
