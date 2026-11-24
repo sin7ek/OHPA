@@ -332,16 +332,27 @@ def heat_loss(cfg,a,b):
     if np.ptp(delta)<4:return {**diagnostics,'status':'insufficient_temperature_range','hours':len(filtered),'delta_t_span_c':r(np.ptp(delta))}
     times=[parse_time(h['start']) for m,q,h in filtered]
     variants=[]
-    for subset in [[0]]+[[0,i] for i in range(1,len(features))]+([list(range(len(features)))] if len(features)>2 else []):
-        model=regression.fit(y,[columns[i] for i in subset],[features[i] for i in subset],times)
-        if model:variants.append(model)
+    subsets=[[0]]+[[0,i] for i in range(1,len(features))]+([list(range(len(features)))] if len(features)>2 else [])
+    if 'wind' in features:
+        wi=features.index('wind');features.append('delta_wind');columns.append(delta*columns[wi])
+        subsets.append([0,wi,len(features)-1])
+        if len(features)>3:subsets.append(list(range(len(features))))
+    for subset in subsets:
+        cols=[columns[i] for i in subset];names=[features[i] for i in subset]
+        model=regression.fit(y,cols,names,times)
+        if model:
+            model.update(regression.diagnostics(y,cols,names,times,model))
+            variants.append(model)
     if not variants:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'warning':'Regression cannot identify a positive heat-loss slope.'}
-    best=variants[-1]
+    # Default to the strongest adjusted in-sample fit among positive slopes;
+    # user may select another specification. Not a validated causal model.
+    eligible=[m for m in variants if m['heat_loss_w_per_k']>0]
+    best=max(eligible,key=lambda m:m['adjusted_r2'] if m['adjusted_r2'] is not None else -1e9) if eligible else variants[0]
     if best['heat_loss_w_per_k']<=0:return {**diagnostics,'status':'unstable_model','hours':len(filtered),'models':variants,'warning':'Regression cannot identify a positive heat-loss slope.'}
     # Preserve legacy top-level fields; all variants use identical eligible hours.
-    points=[{'time':local_iso(t),'delta_t':r(dx),'observed_kw':r(q),'predicted_kw':p} for t,dx,q,p in zip(times,delta,y,best['predicted_kw'])]
+    points=[{'time':local_iso(t),'delta_t':r(dx),'observed_kw':r(q),'predicted_kw':p,'predictors':{k:r(v[i],6) for k,v in zip(features,columns)}} for i,(t,dx,q,p) in enumerate(zip(times,delta,y,best['predicted_kw']))]
     models=[{k:v for k,v in m.items() if k!='predicted_kw'} for m in variants]
-    return {**diagnostics,'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':best['heat_loss_w_per_k'],'heat_loss_ci95_w_per_k':best['heat_loss_ci95_w_per_k'],'intercept_kw':best['coefficients']['intercept'],'features':best['features'],'coefficients':{k:v for k,v in best['coefficients'].items() if k!='intercept'},'rmse_kw':best['rmse_kw'],'r2':best['r2'],'delta_t_range_c':[r(delta.min()),r(delta.max())],'models':models,'points':points,'selected_model':models[-1],'warning':'Exploratory observational regression; approximate HAC intervals do not account for model selection, thermal mass or unmeasured gains. Not certified design sizing.'}
+    return {**diagnostics,'status':'exploratory','hours':len(filtered),'heat_loss_w_per_k':best['heat_loss_w_per_k'],'heat_loss_ci95_w_per_k':best['heat_loss_ci95_w_per_k'],'intercept_kw':best['coefficients']['intercept'],'features':best['features'],'coefficients':{k:v for k,v in best['coefficients'].items() if k!='intercept'},'rmse_kw':best['rmse_kw'],'r2':best['r2'],'delta_t_range_c':[r(delta.min()),r(delta.max())],'models':models,'points':points,'selected_model':next(m for m in models if m['features']==best['features']),'warning':'Exploratory observational regression; approximate HAC intervals do not account for model selection, thermal mass or unmeasured gains. Not certified design sizing.'}
 
 
 def weather_defrost(cfg,a,b):
