@@ -11,9 +11,7 @@ Deep blue: identity; cyan: cooling/return; orange: heating/supply; teal: efficie
 Keep clear space of at least 1/8 of the mark width. Do not stretch, recolor, or add shadows. Use dark-background variants on dark surfaces; black/white variants for single-ink use. Prefer app icon for small sizes; inspect 16px in the target browser. The full logo is intended for larger placements (at least 240px wide).
 
 ## Integration
-Copy logos and icons into the application's static assets directory. Use `web/tokens.css` as a starting point, not a replacement for the existing theme. Place Home Assistant `icon.png` and `logo.png` alongside the relevant app configuration after verifying the repository layout. Upload `github/social-preview.png` via repository settings. Use SVG in README and documentation; consider GitHub light/dark picture sources. Do not bundle font binaries. Licensing and trademark policy should be set by the project maintainer before publication.
+The README uses the full-name light/dark SVGs in `branding/logos/`. The shared web UI uses `static/branding/app-icon.svg` for its header and relative-path favicon (including HA Ingress). The OHPA wordmark is available in light/dark variants. Starter CSS tokens are in `static/branding/tokens.css`; JSON tokens in `branding/tokens.json`. Keep existing semantic chart/status colors until contrast and meaning have been reviewed. The native Home Assistant PNG artwork and repository social preview still need deployment; the latter is set via repository settings.
 
 ## Status
-The existing technical abbreviation OHPA is retained; OPHA-labelled wordmarks from the concept package are not published. The primary full-name artwork and app icon are used in this repository.
-
-Visual assets and starter tokens are supplied. Full UI components, accessibility audit, real dashboard redesign and actual GitHub integration are not included in this first package.
+OHPA is the official abbreviation. Do not use OPHA. The application remains local and read-only; optimization refers to user insight, not automatic control. Full dashboard redesign and accessibility audit remain separate work. No runtime analytics or configuration changes are intended.
