@@ -50,6 +50,11 @@ ROLES={
  'eev':('Expansion valve position','steps','expert',False,['steps','%']),
  'high_pressure':('High refrigerant pressure','bar','expert',False,['bar','kPa','MPa','psi']),
  'low_pressure':('Low refrigerant pressure','bar','expert',False,['bar','kPa','MPa','psi']),
+ 'zone_presence':('Presence in CO2 measurement zone','on/off','expert',False,['on/off']),
+ 'zone_temperature':('Temperature in CO2 measurement zone','°C','expert',False,['°C','°F','K']),
+ 'zone_humidity':('Relative humidity in CO2 measurement zone','%','expert',False,['%']),
+ 'bathroom_humidity':('Bathroom relative humidity','%','expert',False,['%']),
+ 'bathroom_temperature':('Bathroom temperature','°C','expert',False,['°C','°F','K']),
  'co2_indoor':('Indoor CO₂ (local zone)','ppm','expert',False,['ppm']),
  'bathroom_fan':('Local extract fan active','on/off','expert',False,['on/off']),
  'other_heat':('Other measured thermal heat input','W','expert',False,['W','kW']),
@@ -100,7 +105,7 @@ def getmeta(k,default=None):
 def unit_norm(u):
     return str(u or '').strip().replace('³','3').replace('²','2').lower().replace(' ','')
 def convert(value,unit,role,on_value='on'):
-    if role in ('defrost','heating','wet','bathroom_fan'):
+    if role in ('defrost','heating','wet','bathroom_fan','zone_presence'):
         if value is None or str(value).lower() in ('unknown','unavailable','none',''): return None
         return float(str(value).lower()==str(on_value).lower())
     try: x=float(value)

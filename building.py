@@ -23,7 +23,7 @@ def normalize(raw):
     p['air_exchange']={'mode':choice(air.get('mode'),('separate','total','ach','unknown')) or 'separate',
         'source':choice(air.get('source'),SOURCES),
         'ach':number(air.get('ach'),0,20),'ach_low':number(air.get('ach_low'),0,20),'ach_high':number(air.get('ach_high'),0,20),
-        'fan_nominal_m3h':number(air.get('fan_nominal_m3h'),0,10000)}
+        'zone_name':str(air.get('zone_name') or '')[:100],'zone_volume':number(air.get('zone_volume'),.001,100000),'fan_nominal_m3h':number(air.get('fan_nominal_m3h'),0,10000)}
     av=p['air_exchange']
     if av['ach_low'] is not None and av['ach_high'] is not None and av['ach_low']>av['ach_high']:raise ValueError('ACH lower bound exceeds upper bound')
     if av['ach'] is not None and ((av['ach_low'] is not None and av['ach']<av['ach_low']) or (av['ach_high'] is not None and av['ach']>av['ach_high'])):raise ValueError('ACH central estimate outside bounds')

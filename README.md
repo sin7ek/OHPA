@@ -1,4 +1,4 @@
-# HeatPump Analytics — v0.3.0 (prototype)
+# HeatPump Analytics — v0.3.1 (prototype)
 
 Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
 
@@ -161,3 +161,6 @@ Calculation levels now differ: Basic uses whole-dwelling illustrative floor-area
 
 ## v0.3.0 — dwelling and analytics update
 Dwelling profile levels, air exchange scenarios, optional CO₂ decay and local extract analysis, comfort metrics, regression diagnostics, grouped live sensors and newest-first defrost history. VERSION is the release version; every CI image additionally embeds its exact Git revision. Increment VERSION for subsequent releases; the footer and health endpoint read it automatically. The short revision identifies each build even between release bumps.
+
+## v0.3.1 — CO₂ decay candidates and zone context
+Optional CO₂-zone presence, temperature and humidity, plus bathroom temperature/humidity roles. Zone name and volume are optional metadata; seven-day candidate search uses observed CO₂ events, rejects detected presence, reports weather, temperature difference and fan activity with coverage. No absence guarantee or automatic profile adoption. Single CO₂ zone for now; further zones and bathroom moisture analysis are future work.

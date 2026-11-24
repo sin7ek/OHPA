@@ -157,6 +157,12 @@ def co2_decay(start:str,end:str,outdoor:float):
     try:
         a,b=range_(start,end);return ventilation.decay(config(),a,b,outdoor)
     except ValueError as e:raise HTTPException(400,str(e))
+@app.get('/api/co2-candidates')
+def co2_candidates(outdoor:float,hours:float=72):
+    try:
+        a,b=range_(hours=hours,max_days=7)
+        return ventilation.candidates(config(),a,b,outdoor)
+    except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/live')
 def live_snapshot():
     try:return live.snapshot(config(),collector.ha_get('/api/states'))
