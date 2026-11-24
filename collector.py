@@ -102,19 +102,23 @@ def collect_once():
             if end>floor:
                 historical.setdefault(end,[]).append((role,v))
         def run_batch(items,a,b,key,cursor):
-            for i in range(0,len(items),8):
+            def attempt(batch):
                 if STOP.is_set():return
-                batch=items[i:i+8]
                 try:
                     saved=fetch_history(batch,a,b)
                     for role,v in batch:setmeta(key+series_id(role,v),cursor)
                     if saved<len(batch):missing.append(f'{len(batch)-saved} mapped series without history in {iso(a)}')
-                except Exception as exc:errors.append(str(exc)[:250])
+                except Exception as exc:
+                    if len(batch)>8 and not STOP.is_set():
+                        mid=len(batch)//2;attempt(batch[:mid]);attempt(batch[mid:])
+                    else:errors.append(str(exc)[:250])
+            size=24 if b-a<=10800 else 8
+            for i in range(0,len(items),size):attempt(items[i:i+size])
         # Always prioritize live collection over older backfill.
         for a,items in live.items():
             if a<current:run_batch(items,a,current,'live_v2:',current)
         for b,items in historical.items():
-            a=max(floor,b-3600)
+            a=max(floor,b-3*3600)
             # Do not advance historical import until the first live query succeeds.
             items=[(k,v) for k,v in items if getmeta('live_v2:'+series_id(k,v)) is not None]
             if items:run_batch(items,a,b,'back_v2:',a)
@@ -140,7 +144,18 @@ def worker():
         seconds=15 if pending else config()['poll_seconds']
         WAKE.wait(seconds);WAKE.clear()
 
-def room_registry():
+_registry_cache=None
+_registry_cached_at=0
+_registry_lock=threading.Lock()
+def room_registry(refresh=False):
+    global _registry_cache,_registry_cached_at
+    with _registry_lock:
+        if not refresh and _registry_cache is not None and time.monotonic()-_registry_cached_at<300:return _registry_cache
+        result=_read_room_registry()
+        _registry_cache=result;_registry_cached_at=time.monotonic()
+        return result
+
+def _read_room_registry():
     """Read-only registry queries. No service calls; no token returned to UI."""
     import json
     from websockets.sync.client import connect
@@ -158,4 +173,4 @@ def room_registry():
     areas=[{k:x.get(k) for k in ('area_id','name','floor_id')} for x in result['config/area_registry/list']]
     devices=[{k:x.get(k) for k in ('id','name','name_by_user','area_id','model','manufacturer')} for x in result['config/device_registry/list']]
     ents=[{**states[x['entity_id']],'device_id':x.get('device_id'),'area_id':x.get('area_id')} for x in result['config/entity_registry/list'] if x.get('entity_id') in states and not x.get('disabled_by')]
-    return {'areas':areas,'devices':devices,'entities':ents,'floors':[{k:x.get(k) for k in ('floor_id','name','level')} for x in result['config/floor_registry/list']]}
+    return {'available_entities':list(states.values()),'areas':areas,'devices':devices,'entities':ents,'floors':[{k:x.get(k) for k in ('floor_id','name','level')} for x in result['config/floor_registry/list']]}

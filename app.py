@@ -146,9 +146,22 @@ async def save_rooms(request:Request):
         p=rooms.normalize(await request.json());setmeta('rooms_profile',p);collector.WAKE.set();return {'rooms':p}
     except (ValueError,TypeError,KeyError,AttributeError) as e:raise HTTPException(400,str(e))
 @app.get('/api/rooms/registry')
-def rooms_registry():
-    try:return collector.room_registry()
+def rooms_registry(refresh:bool=False):
+    try:return collector.room_registry(refresh)
     except Exception:raise HTTPException(502,'HA registry unavailable; manual configuration remains available.')
+@app.get('/api/rooms/progress')
+def rooms_progress():
+    cfg=config();current=now()-15;floor=current-cfg['backfill_days']*86400
+    result=[]
+    for room in rooms.normalize(getmeta('rooms_profile',[])):
+        sensors=[]
+        for key,m in room['sensors'].items():
+            role=rooms.FIELDS[key][0];sid=series_id(role,m)
+            old=getmeta('back_v2:'+sid);end=getmeta('live_v2:'+sid)
+            scanned=round(100*max(0,min(1,(current-(old if old is not None else current))/(current-floor))),1) if end is not None else 0
+            sensors.append({'key':key,'scan_pct':scanned,'last_collected':local_iso(end) if end is not None else None})
+        result.append({'id':room['id'],'sensors':sensors})
+    return {'rooms':result,'backfill_days':cfg['backfill_days'],'warning':'Scan progress, not valid measurement coverage.'}
 @app.get('/api/rooms/analysis')
 def rooms_analysis(hours:float=24):
     try:
