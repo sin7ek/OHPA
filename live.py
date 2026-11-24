@@ -16,7 +16,7 @@ def snapshot(cfg,states,at=None):
         v=convert(raw,m['unit'],role,m.get('on_value','on'))
         # Slow/contextual states can remain unchanged for long periods. A timestamp
         # is the entity timestamp, not proof of an attribute's physical freshness.
-        contextual=role in ('inside','target','outside','weather_temperature','supply_target','humidity','dewpoint','air_pressure')
+        contextual=role in ('inside','target','outside','weather_temperature','supply_target','humidity','dewpoint','air_pressure','frequency','defrost','buh','heating')
         status='missing' if v is None else 'state_available' if contextual else 'recent' if age is not None and age<=120 else 'age_unverified' if age is None else 'older_state'
         values[role]={'status':status,'value':v,'unit':m['unit'] if role in ('fan','eev') else ROLES[role][1],'timestamp':stamp,'age_seconds':round(age) if age is not None else None,'entity':m['entity']}
     def v(k):return values.get(k,{}).get('value')
@@ -37,4 +37,11 @@ def snapshot(cfg,states,at=None):
     if q is not None and pel is not None and pel>0 and coherent(keys):
         if mode=='none' or thermal=='inside' or (mode=='separate' and v('buh')==0):cop=q/pel
         elif mode=='separate' and thermal=='outside':cop=(q+v('buh'))/pel
-    return {'timestamp':local_iso(at),'measurements':values,'thermal_w':q,'delta_t':delta,'system_power_w':pel,'system_cop':cop,'max_age_seconds':120,'max_skew_seconds':60}
+    # A valid but older explicit zero BUH state can support a labelled snapshot
+    # estimate, never the strict synchronized KPI. Missing is not zero.
+    estimate_power=estimate_cop=None
+    if mode=='separate' and v('buh')==0 and usable('power') and pel is None:
+        estimate_power=v('power')
+        if q is not None and estimate_power>0 and coherent(('supply','return','flow','power')):
+            estimate_cop=q/estimate_power
+    return {'estimated_system_power_w':estimate_power,'estimated_system_cop':estimate_cop,'timestamp':local_iso(at),'measurements':values,'thermal_w':q,'delta_t':delta,'system_power_w':pel,'system_cop':cop,'max_age_seconds':120,'max_skew_seconds':60}

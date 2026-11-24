@@ -46,3 +46,24 @@ def test_older_fast_measurement_still_blocks_derived_heat():
     s=live.snapshot(cfg,states,1000)
     assert s['measurements']['supply']['status']=='older_state'
     assert s['thermal_w'] is None
+
+def test_old_zero_buh_snapshot_estimate_only():
+    cfg,states=setup();states[-1]['last_updated']=core.iso(100)
+    s=live.snapshot(cfg,states,1000)
+    assert s['system_power_w'] is None and s['system_cop'] is None
+    assert s['estimated_system_power_w']==1500
+    assert s['estimated_system_cop']==pytest.approx(6978/1500)
+    states[-1]['state']='unavailable'
+    assert live.snapshot(cfg,states,1000)['estimated_system_cop'] is None
+    states[-1]['state']='100'
+    assert live.snapshot(cfg,states,1000)['estimated_system_power_w'] is None
+
+def test_unchanged_compressor_and_defrost():
+    cfg,states=setup()
+    for role,value in [('frequency','55'),('defrost','off')]:
+        cfg['mapping'][role]={'entity':'sensor.'+role,'unit':core.ROLES[role][1]}
+        states.append({'entity_id':'sensor.'+role,'state':value,'last_updated':core.iso(100)})
+    s=live.snapshot(cfg,states,1000)
+    assert s['measurements']['frequency']['value']==55
+    assert s['measurements']['defrost']['value']==0
+    assert s['measurements']['defrost']['status']=='state_available'
