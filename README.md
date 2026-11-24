@@ -1,4 +1,4 @@
-# HeatPump Analytics — v0.4.1 (prototype)
+# HeatPump Analytics — v0.4.2 (prototype)
 
 Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
 
@@ -170,3 +170,6 @@ Optional independent room registry, manual or HA area/floor import, device-based
 
 ## v0.4.1 — Room setup and dynamic diagnostics
 Unique per-area HA sensor suggestions (never overwrite), sorted floors, hidden unmapped rooms in analysis, emitter dropdown retaining old text, optional emitter fan state/power, observed hours, canonical units and binary runtime percentages, temperature trends and adjacent fully covered hourly pairs, simultaneous T/RH derived humidity and dew point. Fan-on/off temperature changes are descriptive only, not energy savings or causal estimates.
+
+## v0.4.2 — Emitter terminology
+Use fan-assisted convector/radiator labels, distinguish fan coil units, and add wall and ceiling heating. Existing stored emitter codes and sensor roles are unchanged.
