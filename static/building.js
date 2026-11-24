@@ -35,7 +35,23 @@ let volumeInput=e.querySelector('input[data-volume-field]');
 function val(x){if(x.shape==='custom')return Number.isFinite(x.custom_m3)&&x.custom_m3>0&&x.custom_m3<=1000000?x.custom_m3:null;return ['length','width','height'].every(k=>Number.isFinite(x[k])&&x[k]>0&&x[k]<=1000)?x.length*x.width*x.height*(x.shape==='tri'?.5:1):null}
 function total(){return p.volume_parts.length&&p.volume_parts.every(x=>val(x)!==null)?p.volume_parts.reduce((a,x)=>a+val(x),0):null}
 function refresh(){let v=total(),known=p.volume_parts.map(val).filter(x=>x!==null);out.textContent=v!==null?trb('Totaal verwarmd volume: ','Total heated volume: ')+fmt(v,3)+' m³':trb('Bekend subtotaal: ','Known subtotal: ')+fmt(known.length?known.reduce((a,x)=>a+x,0):null,3)+' m³ · '+trb('Vul alle bouwdelen volledig in om het totaal over te nemen.','Complete all parts before using the total.');apply.disabled=v===null||v>1000000;rows.querySelectorAll('[data-part-volume]').forEach((node,i)=>node.textContent=fmt(val(p.volume_parts[i]),3)+' m³')}
-function draw(){rows.replaceChildren();for(let part of p.volume_parts){let row=document.createElement('div');row.className='panel';rows.append(row);grid(row,[field(part,'name',trb('Bouwdeel','Part'),'',null,'text'),field(part,'shape',trb('Vorm','Shape'),'', [['rect',trb('Rechthoekig / plat dak','Rectangular / flat roof')],['tri',trb('Driehoekig dakvolume','Triangular roof volume')],['custom',trb('Eigen berekend volume','Custom calculated volume')]]),field(part,'length',trb('Binnenlengte (m)','Internal length (m)')),field(part,'width',trb('Binnenbreedte (m)','Internal width (m)')),field(part,'height',trb('Vrije hoogte (m)','Clear height (m)')),field(part,'custom_m3',trb('Eigen volume (m³)','Custom volume (m³)'),trb('Alleen bij eigen berekend volume','Only for custom calculated volume')),field(part,'source',trb('Herkomst','Source'),'',choices.source())]);let sub=document.createElement('p');sub.dataset.partVolume='1';row.append(sub);row.addEventListener('input',refresh);button(row,trb('Verwijder bouwdeel','Remove part'),()=>{p.volume_parts=p.volume_parts.filter(x=>x!==part);draw()})}refresh()}
+function draw(){
+rows.replaceChildren();
+for(let part of p.volume_parts){
+let row=document.createElement('div');row.className='panel';rows.append(row);
+let name=field(part,'name',trb('Bouwdeel','Part'),'',null,'text'),shape=field(part,'shape',trb('Vorm','Shape'),'', [['rect',trb('Rechthoekig volume','Rectangular volume')],['tri',trb('Driehoekig volume','Triangular volume')],['custom',trb('Eigen berekend volume','Custom calculated volume')]]);
+let dims=[field(part,'length',trb('Binnenlengte (m)','Internal length (m)')),field(part,'width',trb('Binnenbreedte (m)','Internal width (m)')),field(part,'height',trb('Vrije hoogte (m)','Clear height (m)'),trb('Bij driehoekig volume: hoogte van de driehoek','For triangular volume: triangle height'))];
+let custom=field(part,'custom_m3',trb('Eigen volume (m³)','Custom volume (m³)'));
+grid(row,[name,shape,...dims,custom,field(part,'source',trb('Herkomst','Source'),'',choices.source())]);
+function syncShape(){let manual=part.shape==='custom';for(let node of dims){node.hidden=manual;node.style.display=manual?'none':''}custom.hidden=!manual;custom.style.display=manual?'':'none';refresh()}
+let sub=document.createElement('p');sub.dataset.partVolume='1';row.append(sub);
+shape.querySelector('select').addEventListener('change',syncShape);
+row.addEventListener('input',refresh);
+button(row,trb('Verwijder bouwdeel','Remove part'),()=>{p.volume_parts=p.volume_parts.filter(x=>x!==part);draw()});
+syncShape();
+}
+refresh()
+}
 button(box,trb('Voeg bouwdeel toe','Add part'),()=>{p.volume_parts.push({name:'',shape:'rect',length:null,width:null,height:null});draw()});
 let settings=document.createElement('div');settings.className='panel';box.insertBefore(settings,rows);
 let g=p.geometry||(p.geometry={});let title=document.createElement('h4');title.textContent=trb('Woningopbouw instellen','Configure dwelling geometry');settings.append(title);
