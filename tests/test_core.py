@@ -82,3 +82,37 @@ def test_mode_gate(cfg):
 
 def test_model_rejects_insufficient_data(cfg):
     baseline(cfg);assert core.heat_loss(cfg,0,3600)['status']=='insufficient_data'
+
+def test_comfort_paired_partial_coverage(cfg):
+    add(cfg,'inside',[(0,19),(900,20),(1800,21),(2700,None)])
+    add(cfg,'target',[(0,20)])
+    s=core.metrics(cfg,0,3600)
+    assert s['comfort_coverage_pct']==75
+    assert s['comfort_observed_hours']==0.75
+    assert s['comfort_deficit_degree_hours']==0.25
+    assert s['comfort_excess_degree_hours']==0.25
+    assert s['comfort_mean_deficit_c']==pytest.approx(1/3,abs=0.001)
+    assert s['comfort_mean_excess_c']==pytest.approx(1/3,abs=0.001)
+    assert s['comfort_max_deficit_c']==1
+    assert s['comfort_within_band_pct']==pytest.approx(33.33)
+    assert s['comfort_below_band_pct']==pytest.approx(33.33)
+    assert s['comfort_above_band_pct']==pytest.approx(33.33)
+    assert s['comfort_mean_inside_c']==20 and s['comfort_mean_target_c']==20
+
+def test_comfort_missing_not_zero(cfg):
+    add(cfg,'inside',[(0,20)])
+    s=core.metrics(cfg,0,3600)
+    assert s['comfort_coverage_pct']==0
+    assert s['comfort_mean_deficit_c'] is None
+    assert s['comfort_within_band_pct'] is None
+    assert s['comfort_max_deficit_c'] is None
+    assert s['comfort_excess_degree_hours'] is None
+
+def test_comfort_inclusive_band_and_time_weighting(cfg):
+    add(cfg,'inside',[(0,19.5),(1800,20.5),(2700,21)])
+    add(cfg,'target',[(0,20)])
+    s=core.metrics(cfg,0,3600)
+    assert s['comfort_within_band_pct']==75
+    assert s['comfort_above_band_pct']==25
+    assert s['comfort_below_band_pct']==0
+    assert s['comfort_mean_deficit_c']==0.25

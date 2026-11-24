@@ -65,6 +65,11 @@ def get_weather_defrost_analysis(start:str|None=None,end:str|None=None,hours:flo
     """Read-only: observed defrost exposure and negative heat by outdoor temperature band, with humidity, dew point, wind and solar where mapped."""
     a,b=range_(start,end,hours);return weather_defrost(config(),a,b)
 @mcp.tool()
+def get_comfort_analysis(start:str|None=None,end:str|None=None,hours:float=24)->dict:
+    """Observed indoor temperature vs target: degree-hours below/above target, mean and peak deficit, percent within ±0.5 °C and joint coverage. No extrapolation."""
+    a,b=range_(start,end,hours);s=metrics(config(),a,b)
+    return {k:v for k,v in s.items() if k.startswith('comfort_') or k in ('start','end','hours')}
+@mcp.tool()
 def get_flow_comparison(start:str|None=None,end:str|None=None,hours:float=24)->dict:
     """Read-only synchronized primary/reference flow comparison, by flow band and defrost status. No calibration or substitution."""
     a,b=range_(start,end,hours);s=metrics(config(),a,b);return {'start':s['start'],'end':s['end'],'flow_comparison':s['flow_comparison']}

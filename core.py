@@ -255,6 +255,21 @@ def metrics(cfg,a,b):
             cycles.append({'start':local_iso(t[i]),'end':local_iso(t[j]+d[j]),'minutes':r(ds.sum()/60,2),'negative_heat_kwh':r(neg,4) if neg is not None else None,'thermal_coverage_pct':r(ds[ok].sum()/ds.sum()*100,2),'start_observed':bool(i>0 and de[i-1]==0),'end_observed':bool(j+1<len(de) and de[j+1]==0)})
     deficit=np.maximum(v('target')-v('inside'),0)
     summary={'start':local_iso(a),'end':local_iso(b),'hours':r(total/3600,3),'means':{k:avg(y) for k,y in x.items()},'coverage_pct':{k:cover(y) for k,y in x.items()},'net_thermal_kwh':energy(q),'positive_thermal_kwh':energy(np.maximum(q,0)),'negative_thermal_kwh':energy(np.minimum(q,0)),'net_thermal_kw':(r(avg(q)/1000) if avg(q) is not None else None),'thermal_coverage_pct':cover(q),'electrical_input_kwh':energy(p),'buh_kwh':energy(buh) if mode=='separate' else (0 if mode=='none' else None),'system_electrical_kwh':energy(pel),'system_thermal_kwh':energy(q_system),'system_cop':r(e_q/e_p) if e_q is not None and e_p and e_p>0 else None,'cop_coverage_pct':r(d[match].sum()/total*100,2),'boundary_cop':r(hp_e_q/hp_e_p) if hp_e_q is not None and hp_e_p and hp_e_p>0 else None,'boundary_cop_coverage_pct':r(d[hp_match].sum()/total*100,2),'defrost_starts':starts if known.any() else None,'defrost_episodes':episodes if known.any() else None,'defrost_minutes':r(d[on].sum()/60,2) if known.any() else None,'defrost_pct_observed':r(d[on].sum()/d[known].sum()*100,2) if known.any() else None,'defrost_negative_kwh':energy(np.where(on,np.minimum(q,0),np.nan)) if known.any() else None,'compressor_high_pct_observed':r(d[valid(freq)&(freq>=cfg['hz_threshold'])].sum()/d[valid(freq)].sum()*100,2) if valid(freq).any() else None,'compressor_high_hours':hours(valid(freq)&(freq>=cfg['hz_threshold'])) if valid(freq).any() else None,'comfort_deficit_degree_hours':r(np.nansum(deficit*d)/3600) if valid(deficit).any() else None,'comfort_coverage_pct':cover(deficit),'reported_thermal_kwh':energy(v('thermal')),'weather_sources':{k:('regional model (hourly)' if m.get('source')=='regional' else 'HA entity: '+m['entity']) for k,m in mapping(cfg).items() if k in REGIONAL or k in ('weather_temperature','illuminance','wind_direction','wind_gust','rain_rate','wet','air_pressure','pv')},'cycles':cycles,'warnings':[]}
+    # Comfort metrics use only intervals where indoor temperature and target coexist.
+    error=v('inside')-v('target');paired=valid(error);observed=d[paired].sum()
+    excess=np.maximum(error,0)
+    def comfort_pct(mask):return r(100*d[paired&mask].sum()/observed,2) if observed else None
+    summary.update(comfort_observed_hours=r(observed/3600,4),
+        comfort_mean_deficit_c=avg(deficit),
+        comfort_max_deficit_c=r(np.max(deficit[paired])) if observed else None,
+        comfort_excess_degree_hours=r(np.sum(excess[paired]*d[paired])/3600) if observed else None,
+        comfort_mean_excess_c=avg(excess),
+        comfort_within_band_pct=comfort_pct(np.abs(error)<=0.5),
+        comfort_below_band_pct=comfort_pct(error < -0.5),
+        comfort_above_band_pct=comfort_pct(error > 0.5),
+        comfort_band_c=0.5,
+        comfort_mean_inside_c=avg(np.where(paired,v('inside'),np.nan)),
+        comfort_mean_target_c=avg(np.where(paired,v('target'),np.nan)))
     summary['flow_comparison']=flow_comparison(t,d,x)
     if 'wind_direction' in x:
         direction=v('wind_direction');ok=valid(direction)
