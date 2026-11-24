@@ -28,10 +28,12 @@ Docker mode uses Basic auth, custom write header for local configuration, and op
 
 ## Release checklist
 1. Update code, tests, relevant user and method docs; preserve mappings, series and DB compatibility.
-2. For a release bump, update VERSION, README and ohpa/config.yaml together; record changelog.
+2. For a release bump, update VERSION, README and ohpa/config.yaml together; record the same release version in both CHANGELOG.md (shared/Docker) and ohpa/CHANGELOG.md (native HA update notes). Include shared changes in both, distribution-specific changes only where relevant; newest versions first. CI verifies both version headings before publishing.
 3. CI runs Python tests, JS syntax checks, native Docker smoke test, metadata match and multiarch publish (latest, Git SHA, version).
 4. Verify published manifests and runtime for both architectures; do not confuse image build with device test.
 5. Validate HA app install/update, ingress routes/assets, Supervisor API/registry, data persistence and access denial on a real HA OS system before declaring stable.
 6. Document exact known limitations and reproducible results. Avoid reusing version tags for behavioral changes; immutable release automation is planned.
 
 The v0.4.4 workflow passed on GitHub Actions (run 45416452335). No real Supervisor validation or ARM execution is established by that run.
+
+The HA app changelog is read from ohpa/CHANGELOG.md by Supervisor, not from the repository root. v0.4.5 CI succeeded (run 45418684969), including both image publications and the simulated root-owned storage test.

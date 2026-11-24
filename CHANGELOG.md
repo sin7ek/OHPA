@@ -1,4 +1,57 @@
-# Changelog
+# OHPA changelog — Docker and shared application
+
+Newest releases first. For the Home Assistant App Store release notes, see [HA changelog](ohpa/CHANGELOG.md). Both distributions share the same release number.
+
+## 0.4.6
+
+### Shared
+- Added native Home Assistant release notes and separate distribution-specific changelogs.
+- CI checks that both changelogs contain the current release version before image publication.
+
+### Docker
+- No runtime, analytics, authentication or database changes.
+- Existing configuration and optional MCP behavior retained.
+
+### Home Assistant
+- Changelog supplied in the Supervisor-supported app directory.
+
+## 0.4.5
+
+### Shared / Docker
+- Shared application behavior unchanged; standalone image continues to run as UID/GID 1000.
+- Both architectures and both installation modes built successfully in [CI run 45418684969](https://github.com/sin7ek/open-heatpump-analytics/actions/runs/45418684969).
+
+### Home Assistant
+- Fixed persistent SQLite startup permissions and explicit startup command.
+- Dedicated startup image prepares storage and drops privileges.
+- Added simulated Supervisor storage startup/restart and direct-access rejection tests. Real HA runtime validation remains separate.
+
+## 0.4.4
+
+- Shared Docker/HA release process, AMD64 and ARM64 images.
+- Optional MCP in standalone Docker; existing valid secrets remain compatible.
+- Experimental HA app with Supervisor API and Ingress; external MCP unavailable in HA mode.
+- Reorganized installation, methodology and development documentation.
+
+## 0.4.3
+
+- Faster room configuration loading, lazy editors and registry caching.
+- Larger bounded history batches and per-room scan progress.
+
+## 0.4.2
+
+- Fan-assisted emitter terminology, wall/ceiling heating and fan coil option.
+
+## 0.4.1
+
+- Room sensor suggestions, temperature dynamics, humidity/dew point, fan-assisted comparison and observed hours.
+
+## 0.4.0
+
+- Optional room registry, HA area/floor import, manual mapping and room-level analysis.
+
+## Earlier development history and detailed notes
+
 
 Historical development notes retained from the previous README. Some paragraphs describe the state at that time, not current behavior. Refer to current guides for installation and methodology.
 

@@ -1,6 +1,6 @@
 # Installation
 
-Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.5 is pre-1.0; the HA app is experimental.
+Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.6 is pre-1.0; the HA app is experimental.
 
 ## Home Assistant OS
 
@@ -23,7 +23,7 @@ Use the following Compose/Portainer stack as a starting point (replace placehold
 ```yaml
 services:
   ohpa:
-    image: ghcr.io/sin7ek/open-heatpump-analytics:0.4.5
+    image: ghcr.io/sin7ek/open-heatpump-analytics:0.4.6
     restart: unless-stopped
     ports:
       - "127.0.0.1:8095:8095"
@@ -94,3 +94,6 @@ Default backfill is three days, configurable up to nine; locally retained data m
 ## Optional AI access
 
 See [MCP guide](mcp.md). It is not part of normal installation. Existing Docker users with a valid MCP secret remain enabled unless explicitly disabled. HA app external MCP is not implemented.
+
+## Release notes
+Docker users can read the [shared and Docker changelog](../CHANGELOG.md). Home Assistant users receive [app release notes](../ohpa/CHANGELOG.md) through the native update interface after Supervisor refreshes the repository. Both follow VERSION.

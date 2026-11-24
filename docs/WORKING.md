@@ -1,6 +1,6 @@
 # OHPA — living development document
 
-Updated 2026-11-24 · baseline v0.4.5 · [roadmap](../ROADMAP.md).
+Updated 2026-11-24 · baseline v0.4.6 · [roadmap](../ROADMAP.md).
 Purpose: handoff between development sessions; update on each substantive change. Distinguish implemented, verified, proposed and blocked. No dates promised.
 
 ## Product principles
@@ -69,3 +69,6 @@ Record commit/version, CI result/link, test environment and exact limitations; u
 HA app v0.4.4 repeatedly failed opening /data/analytics.sqlite at startup (502). Likely Supervisor mount ownership. Dedicated HA image startup prepares only /data and known database files, rejects symlinks, then drops to UID/GID 1000. Standalone remains unchanged. CI adds root-owned bind mount and restart smoke test plus direct ingress denial. Actual HA retest pending.
 
 - v0.4.5 first CI attempt (45418149627) failed with `setpriv: No program specified`: changing ENTRYPOINT clears inherited CMD. Explicit HA CMD and entrypoint default argv added. Standalone smoke test and Python/JS checks passed in the failed run; HA retest and publication pending.
+
+## v0.4.6 — release notes
+Maintain root CHANGELOG.md for shared/Docker releases and ohpa/CHANGELOG.md for HA update UI. Include shared changes in both. CI requires exact current version headings in both before publication. v0.4.5 CI 45418684969 succeeded; actual HA changelog display and v0.4.6 build still require verification. No runtime changes in this release.

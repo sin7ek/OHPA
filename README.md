@@ -1,6 +1,6 @@
 # Open HeatPump Analytics (OHPA)
 
-**Current release: v0.4.5 — experimental / pre-1.0**
+**Current release: v0.4.6 — experimental / pre-1.0**
 
 Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sensor data into transparent performance, comfort, defrost, weather and exploratory heat-loss analyses. It is manufacturer-independent and does not control your heat pump. No AI subscription or MCP connection is necessary.
 
@@ -17,7 +17,7 @@ Both distribution modes share the same code, version, database schema and web UI
 
 **Quick start HA OS:** add this repository in the App Store, install Open HeatPump Analytics, start and open Web UI. No separate HA token or MCP required. See the installation guide before use.
 
-**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.5` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
+**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.6` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
 
 ## What OHPA does
 
@@ -43,7 +43,8 @@ OHPA does not estimate missing energy as zero, automatically adjust heating sett
 | [Architecture](docs/architecture.md) | Shared distribution, persistence, security, release process |
 | [Working document](docs/WORKING.md) | Current state, decisions, open questions, next work and acceptance criteria |
 | [Roadmap](ROADMAP.md) | Priorities and proposed milestones, not promised dates |
-| [Changelog](CHANGELOG.md) | Historical development notes |
+| [Docker / shared changelog](CHANGELOG.md) | Release notes and historical development notes |
+| [HA app changelog](ohpa/CHANGELOG.md) | Supervisor-visible update notes |
 
 ## Verification
 

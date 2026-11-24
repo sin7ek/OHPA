@@ -56,6 +56,8 @@ jobs:
         run: |
           version=$(cat VERSION)
           grep -Fx "version: \"$version\"" ohpa/config.yaml
+          grep -Fx "## $version" CHANGELOG.md
+          grep -Fx "## $version" ohpa/CHANGELOG.md
           echo "OHPA_VERSION=$version" >> "$GITHUB_ENV"
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
