@@ -1,5 +1,5 @@
 name: Open HeatPump Analytics
-version: "0.4.7"
+version: "0.4.8"
 slug: ohpa
 description: Local heat pump, building and room analytics (experimental)
 url: https://github.com/sin7ek/OHPA
