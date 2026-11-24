@@ -9,11 +9,16 @@ def snapshot(cfg,states,at=None):
     for role,m in cfg['mapping'].items():
         if role not in ROLES:continue
         s=by.get(m['entity'],{});raw=s.get('attributes',{}).get(m['attribute']) if m.get('attribute') else s.get('state')
+        if str(s.get('state','')).lower() in ('unknown','unavailable','none',''):raw=None
         stamp=s.get('last_reported') or s.get('last_updated') or s.get('last_changed')
         try: age=max(0,at-parse_time(stamp)) if stamp else None
         except (ValueError,TypeError):age=None
         v=convert(raw,m['unit'],role,m.get('on_value','on'))
-        values[role]={'value':v,'unit':m['unit'] if role in ('fan','eev') else ROLES[role][1],'timestamp':stamp,'age_seconds':round(age) if age is not None else None,'entity':m['entity']}
+        # Slow/contextual states can remain unchanged for long periods. A timestamp
+        # is the entity timestamp, not proof of an attribute's physical freshness.
+        contextual=role in ('inside','target','outside','weather_temperature','supply_target','humidity','dewpoint','air_pressure')
+        status='missing' if v is None else 'state_available' if contextual else 'recent' if age is not None and age<=120 else 'age_unverified' if age is None else 'older_state'
+        values[role]={'status':status,'value':v,'unit':m['unit'] if role in ('fan','eev') else ROLES[role][1],'timestamp':stamp,'age_seconds':round(age) if age is not None else None,'entity':m['entity']}
     def v(k):return values.get(k,{}).get('value')
     def usable(k):
         item=values.get(k,{})

@@ -23,3 +23,26 @@ def test_unknown_boundary_zero_buh():
     assert live.snapshot(cfg,states,1000)['system_cop'] is not None
     states[-1]['state']='100'
     assert live.snapshot(cfg,states,1000)['system_cop'] is None
+
+def test_contextual_thermostat_attributes_remain_available(cfg=None):
+    cfg,states=setup()
+    cfg['mapping']['inside']={'entity':'climate.room','attribute':'current_temperature','unit':'°C'}
+    cfg['mapping']['target']={'entity':'climate.room','attribute':'temperature','unit':'°C'}
+    thermostat={'entity_id':'climate.room','state':'heat','attributes':{'current_temperature':20.9,'temperature':21.5},'last_updated':core.iso(100)}
+    states.append(thermostat)
+    s=live.snapshot(cfg,states,1000)
+    assert s['measurements']['inside']['value']==20.9
+    assert s['measurements']['target']['value']==21.5
+    assert s['measurements']['target']['status']=='state_available'
+    assert s['measurements']['inside']['age_seconds']==900
+    thermostat['state']='unavailable'
+    s=live.snapshot(cfg,states,1000)
+    assert s['measurements']['inside']['value'] is None
+    assert s['measurements']['target']['status']=='missing'
+
+def test_older_fast_measurement_still_blocks_derived_heat():
+    cfg,states=setup()
+    states[0]['last_updated']=core.iso(100)
+    s=live.snapshot(cfg,states,1000)
+    assert s['measurements']['supply']['status']=='older_state'
+    assert s['thermal_w'] is None

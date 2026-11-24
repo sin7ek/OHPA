@@ -129,3 +129,5 @@ Historical KPI cards display the actual analyzed duration and start/end timestam
 
 ### Thermal comfort
 Historical cards show analysis duration only; exact start/end appear once above the cards. Comfort metrics use mutually observed indoor temperature and target intervals. Degree-hours integrate positive deficit/excess; mean deficit/excess divide by paired observed hours including zero-deficit/excess intervals. ±0.5 °C inclusive is a descriptive reference band, not a clinical comfort threshold. Coverage, paired means, maximum deficit, and below/within/above percentages are exported in hourly CSV, performance API and read-only MCP get_comfort_analysis. Missing data are not zero or extrapolated.
+
+Live contextual measurements (room temperature, target, outdoor and selected slow-changing weather values) display the last known HA state regardless of entity timestamp age. This is not a guarantee of physical freshness. Fast measurements retain the conservative timestamp gate for derived KPIs. Unavailable parent entities invalidate attribute values. Setup previews the selected attribute rather than the parent climate state.
