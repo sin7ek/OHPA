@@ -1,12 +1,12 @@
 name: Open HeatPump Analytics
-version: "0.4.4"
+version: "0.4.5"
 slug: ohpa
 description: Local heat pump, building and room analytics (experimental)
 url: https://github.com/sin7ek/open-heatpump-analytics
 arch:
   - amd64
   - aarch64
-image: ghcr.io/sin7ek/open-heatpump-analytics
+image: ghcr.io/sin7ek/open-heatpump-analytics-ha
 startup: application
 boot: auto
 init: false

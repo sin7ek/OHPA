@@ -1,6 +1,6 @@
 # OHPA — living development document
 
-Updated 2026-11-24 · baseline v0.4.4 · [roadmap](../ROADMAP.md).
+Updated 2026-11-24 · baseline v0.4.5 · [roadmap](../ROADMAP.md).
 Purpose: handoff between development sessions; update on each substantive change. Distinguish implemented, verified, proposed and blocked. No dates promised.
 
 ## Product principles
@@ -64,3 +64,6 @@ Local analytics; HA read-only; vendor neutral; manual configuration always possi
 
 ## Handoff checklist
 Record commit/version, CI result/link, test environment and exact limitations; update docs/roadmap status; avoid marking a proposed capability implemented. Do not embed credentials, private entity IDs or personal field data in public docs. Preserve raw history and existing configurations.
+
+## v0.4.5 field issue
+HA app v0.4.4 repeatedly failed opening /data/analytics.sqlite at startup (502). Likely Supervisor mount ownership. Dedicated HA image startup prepares only /data and known database files, rejects symlinks, then drops to UID/GID 1000. Standalone remains unchanged. CI adds root-owned bind mount and restart smoke test plus direct ingress denial. Actual HA retest pending.

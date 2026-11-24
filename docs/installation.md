@@ -1,6 +1,6 @@
 # Installation
 
-Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.4 is pre-1.0; the HA app is experimental.
+Both distributions use the same application. Start with one instance, and never share a writable SQLite database between instances. v0.4.5 is pre-1.0; the HA app is experimental.
 
 ## Home Assistant OS
 
@@ -23,7 +23,7 @@ Use the following Compose/Portainer stack as a starting point (replace placehold
 ```yaml
 services:
   ohpa:
-    image: ghcr.io/sin7ek/open-heatpump-analytics:0.4.4
+    image: ghcr.io/sin7ek/open-heatpump-analytics:0.4.5
     restart: unless-stopped
     ports:
       - "127.0.0.1:8095:8095"
@@ -86,7 +86,7 @@ MCP is disabled in the example environment. See [optional MCP](mcp.md) only if n
 | Slow room import | History scan is asynchronous; up to 24 mappings per short batch and three-hour backward steps; larger batches split on error |
 | No COP | Synchronized flow, supply, return, electricity and BUH boundary |
 | Missing live derived values | Timestamp age/skew or unavailable sensors |
-| Startup permission error | Persistent data directory writable by container UID 1000 |
+| Startup permission error / SQLite unable to open database | HA: update to v0.4.5 or newer; dedicated app startup prepares /data then drops privileges. Docker: persistent data directory writable by UID 1000 |
 | App loads blank | Check version, ingress logs and assets; report without credentials |
 
 Default backfill is three days, configurable up to nine; locally retained data may support longer analysis. Default polling is two minutes, with a shorter wait while backfill is pending. Scan progress does not mean data exist or are valid.

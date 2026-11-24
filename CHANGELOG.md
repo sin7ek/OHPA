@@ -72,3 +72,6 @@ See [installation guide](docs/installation.md). HA OS app uses the same versione
 
 ## Documentation refresh (v0.4.4)
 Reorganized user, installation, optional MCP, methodology, architecture, working document and roadmap. Added missing .env.example (requires user values). No application code change; existing runtime version remains 0.4.4.
+
+## v0.4.5 — HA persistent storage startup fix
+Address SQLite unable to open database on Supervisor-managed /data. Dedicated HA image target prepares directory and known SQLite files then drops privileges; standalone image stays non-root. Add root-owned storage smoke test, restart and direct-access rejection. Real HA confirmation pending.

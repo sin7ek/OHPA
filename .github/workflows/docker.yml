@@ -27,6 +27,26 @@ jobs:
           done
           docker logs ohpa
           exit 1
+      - name: Smoke test HA app with root-owned Supervisor-style storage
+        run: |
+          docker build --target ha_app --build-arg OHPA_REVISION=${GITHUB_SHA} -t ohpa:ha-test .
+          data=$(mktemp -d)
+          sudo chown root:root "$data"
+          sudo chmod 700 "$data"
+          docker run -d --name ohpa-ha -e OHPA_INSTALL_MODE=ha_app -e MCP_ENABLED=false -v "$data:/data" ohpa:ha-test
+          for i in $(seq 1 30); do
+            if docker logs ohpa-ha 2>&1 | grep -q 'Application startup complete' && sudo test -f "$data/analytics.sqlite"; then
+              test "$(sudo stat -c %u "$data/analytics.sqlite")" = 1000
+              docker restart ohpa-ha
+              sleep 3
+              test "$(docker inspect -f '{{.State.Running}}' ohpa-ha)" = true
+              docker exec ohpa-ha python -c "import urllib.request,urllib.error; u='http://127.0.0.1:8095/health'; exec('try:\\n urllib.request.urlopen(u)\\nexcept urllib.error.HTTPError as e:\\n assert e.code==403\\nelse:\\n raise AssertionError(\"Ingress bypass\")')"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs ohpa-ha
+          exit 1
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -49,3 +69,14 @@ jobs:
             ghcr.io/sin7ek/open-heatpump-analytics:latest
             ghcr.io/sin7ek/open-heatpump-analytics:${{ github.sha }}
             ghcr.io/sin7ek/open-heatpump-analytics:${{ env.OHPA_VERSION }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ha_app
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: OHPA_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/sin7ek/open-heatpump-analytics-ha:${{ env.OHPA_VERSION }}
+            ghcr.io/sin7ek/open-heatpump-analytics-ha:${{ github.sha }}

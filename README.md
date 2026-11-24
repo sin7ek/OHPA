@@ -1,6 +1,6 @@
 # Open HeatPump Analytics (OHPA)
 
-**Current release: v0.4.4 — experimental / pre-1.0**
+**Current release: v0.4.5 — experimental / pre-1.0**
 
 Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sensor data into transparent performance, comfort, defrost, weather and exploratory heat-loss analyses. It is manufacturer-independent and does not control your heat pump. No AI subscription or MCP connection is necessary.
 
@@ -13,11 +13,11 @@ Local, read-only heat pump analytics for Home Assistant. OHPA turns recorded sen
 | [Docker Compose](docs/installation.md#docker-compose) | Reproducible self-managed install | Same application |
 | [Optional MCP](docs/mcp.md) | External AI-assisted analytics | Standalone Docker only; optional |
 
-Both distribution modes share the same code, version, database schema and web UI. Images are published for linux/amd64 and linux/arm64. Use one instance per database.
+Both distribution modes share the same code, version, database schema and web UI. The HA image has a dedicated startup layer for Supervisor-owned persistent storage; standalone Docker remains non-root from startup. Images are published for linux/amd64 and linux/arm64. Use one instance per database.
 
 **Quick start HA OS:** add this repository in the App Store, install Open HeatPump Analytics, start and open Web UI. No separate HA token or MCP required. See the installation guide before use.
 
-**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.4` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
+**Quick start Docker:** use `ghcr.io/sin7ek/open-heatpump-analytics:0.4.5` (or `:latest`), set HA_URL, HA_TOKEN and ADMIN_PASSWORD, persist /data, map port 8095 on a trusted network. See the installation guide for complete configuration and security.
 
 ## What OHPA does
 
