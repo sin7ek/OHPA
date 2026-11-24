@@ -66,6 +66,33 @@ button(settings,trb('Voeg schuine dakvlakken toe aan thermische schil','Add slop
 
 draw();
 }
+function roofCalculator(r){
+p.roof_calculations=p.roof_calculations||[];
+let box=document.createElement('div');box.className='panel';r.append(box);
+box.innerHTML='<h3>'+esc(trb('Dakoppervlaktecalculator','Roof area calculator'))+'</h3><p class="hint">'+esc(trb('Bereken elk afzonderlijk dakvlak met de horizontale projectie van dat vlak. Plat dak: 0°. Bij een zadeldak gebruik je voor ieder vlak de eigen horizontale breedte (bij een symmetrisch dak meestal de halve woningbreedte). Gebruik geen overstek buiten de thermische schil. Voor onregelmatige vlakken kun je het bruto oppervlak rechtstreeks invoeren.','Calculate each roof plane using its own horizontal projection. Flat roof: 0°. For a gable roof use the horizontal width of each plane (typically half the dwelling width for a symmetrical roof). Exclude overhangs outside the thermal envelope. Enter irregular gross areas directly.'))+'</p>';
+let rows=document.createElement('div');box.append(rows);
+function area(c){return Number.isFinite(c.width)&&c.width>0&&c.width<=1000&&Number.isFinite(c.length)&&c.length>0&&c.length<=1000&&Number.isFinite(c.pitch)&&c.pitch>=0&&c.pitch<=89.9?Math.round(c.width*c.length/Math.cos(c.pitch*Math.PI/180)*1000)/1000:null}
+function draw(){
+rows.replaceChildren();
+for(let c of p.roof_calculations){
+let row=document.createElement('div');row.className='panel';rows.append(row);
+let roofs=p.surfaces.filter(s=>s.kind==='roof').map(s=>[s.id,s.name||s.id]);
+let target=field(c,'surface_id',trb('Bestaand dakvlak koppelen (optioneel)','Link existing roof plane (optional)'),trb('Kies het vlak waarvan je het bruto oppervlak wilt bijwerken.','Select the plane whose gross area you want to update.'),roofs);
+grid(row,[field(c,'name',trb('Naam dakvlak','Roof plane name'),'',null,'text'),field(c,'width',trb('Horizontale breedte van dit vlak (m)','Horizontal width of this plane (m)')),field(c,'length',trb('Lengte (m)','Length (m)')),field(c,'pitch',trb('Dakhelling (°)','Roof pitch (°)'),trb('Plat dak: 0°','Flat roof: 0°')),field(c,'source',trb('Herkomst','Source'),'',choices.source()),target]);
+let out=document.createElement('p');row.append(out);
+let take=button(row,trb('Neem oppervlak over naar thermische schil','Copy area into thermal envelope'),()=>{
+let v=area(c);if(v===null||v>100000)return;
+let s=p.surfaces.find(x=>x.id===c.surface_id&&x.kind==='roof');
+if(s){if(!confirm(trb('Bruto oppervlak en helling van dit dakvlak bijwerken?','Update gross area and pitch of this roof plane?')))return;if(p.surfaces.filter(x=>x.parent===s.id).reduce((n,x)=>n+(x.area||0),0)>v){msg(trb('Openingen zijn groter dan het berekende dakvlak.','Openings exceed calculated roof area.'),true);return}}
+else{if(p.surfaces.length>=100){msg(trb('Maximaal 100 constructievlakken.','Maximum 100 surfaces.'),true);return}if(!confirm(trb('Nieuw dakvlak toevoegen aan de thermische schil? Alleen bevestigen als dit vlak aan buitenlucht grenst en nog niet is ingevoerd.','Add a new roof plane to the thermal envelope? Confirm only if this plane borders outdoor air and is not already entered.')))return;s={id:crypto.randomUUID?.()||String(Date.now())+'-'+Math.random(),kind:'roof',name:c.name||trb('Dakvlak','Roof plane'),boundary:'outside'};p.surfaces.push(s);c.surface_id=s.id}
+s.area=v;s.pitch=c.pitch;if(c.source)s.source=c.source;render();msg(trb('Dakoppervlak overgenomen. Sla het woningprofiel op.','Roof area copied. Save the dwelling profile.'))
+});
+function refresh(){let v=area(c);out.textContent=trb('Berekend bruto dakoppervlak: ','Calculated gross roof area: ')+fmt(v,3)+' m²';take.disabled=v===null||v>100000}
+row.addEventListener('input',refresh);row.addEventListener('change',refresh);
+button(row,trb('Verwijder berekening','Remove calculation'),()=>{p.roof_calculations=p.roof_calculations.filter(x=>x!==c);draw()});refresh()
+}}
+button(box,trb('Voeg dakberekening toe','Add roof calculation'),()=>{if(p.roof_calculations.length>=100)return;p.roof_calculations.push({name:'',width:null,length:null,pitch:p.geometry?.roof_type==='flat'?0:null});draw()});draw();
+}
 function render(){
 root.replaceChildren();let head=document.createElement('h1');head.textContent=trb('Woningprofiel','Dwelling profile');root.append(head);
 let nav=document.createElement('div');nav.className='toolbar';root.append(nav);for(let [v,n,e] of [['basic','Basis','Basic'],['extended','Uitgebreid','Extended'],['expert','Expert','Expert']])button(nav,trb(n,e),()=>{level=v;render()});
@@ -78,7 +105,7 @@ let e=panel(trb('2. Afmetingen en ventilatie','2. Dimensions and ventilation'),t
 grid(e,[field(p,'year',trb('Bouwjaar','Construction year')),field(p,'floor_area',trb('Verwarmd vloeroppervlak (m²)','Heated floor area (m²)')),field(p,'volume',trb('Verwarmd volume (m³)','Heated volume (m³)')),field(p,'insulation',trb('Isolatieniveau (beschrijvend)','Insulation level (descriptive)'),'',choices.insulation()),field(p,'ventilation',trb('Ventilatiesysteem','Ventilation type'),'',choices.ventilation()),field(p,'ventilation_flow',trb('Ventilatiedebiet (m³/h)','Ventilation flow (m³/h)'),trb('Buitenluchtdebiet, geen recirculatie','Outdoor air flow, not recirculation')),field(p,'wtr',trb('WTW-rendement (%)','Heat recovery efficiency (%)'))]);
 volumeCalculator(e);
 let r=panel(trb('3. Thermische schil','3. Thermal envelope'),trb('Voeg alle grensvlakken toe. Gevel/dak = bruto m² inclusief openingen. Koppel ramen en deuren aan hun oudervlak; OHPA trekt ze af. Gebruik de geïsoleerde zoldervloer als de zolder buiten de verwarmde schil ligt.','Add all envelope surfaces. Wall/roof = gross area including openings. Link windows and doors to their parent; OHPA subtracts them. Use insulated attic ceiling when attic is outside heated envelope.'));
-let calc={width:null,length:null,pitch:null};grid(r,[field(calc,'width',trb('Dak: horizontale breedte (m)','Roof: horizontal width (m)')),field(calc,'length',trb('Dak: lengte (m)','Roof: length (m)')),field(calc,'pitch',trb('Dakhelling (°)','Roof pitch (°)'))]);let out=document.createElement('p');button(r,trb('Bereken dakoppervlak','Calculate roof area'),()=>{out.textContent=calc.width>0&&calc.length>0&&calc.pitch>=0&&calc.pitch<90&&calc.pitch!==null?fmt(calc.width*calc.length/Math.cos(calc.pitch*Math.PI/180))+' m²':trb('Vul geldige afmetingen in','Enter valid dimensions')});r.append(out);
+roofCalculator(r);
 for(let s of p.surfaces){let box=document.createElement('div');box.className='panel';r.append(box);let parents=p.surfaces.filter(x=>x.id!==s.id&&['wall','roof'].includes(x.kind)).map(x=>[x.id,x.name||x.id]);
 let f=[field(s,'name',trb('Naam','Name'),'',null,'text'),field(s,'kind',trb('Constructie','Construction'),'',choices.kind()),field(s,'area',trb('Bruto oppervlak (m²)','Gross area (m²)')),field(s,'boundary',trb('Grenst aan','Boundary'),'',choices.boundary()),field(s,'parent',trb('Oudervlak (alleen raam/deur)','Parent (window/door only)'),'',parents),field(s,'orientation',trb('Oriëntatie (°)','Bearing (°)')),field(s,'pitch',trb('Hellingshoek (°)','Pitch (°)')),field(s,'source',trb('Herkomst','Source'),'',choices.source())];
 if(level==='expert')f.push(field(s,'u',trb('U / Uw / Ud (W/m²K)','U / Uw / Ud (W/m²K)'),trb('Voor ramen inclusief kozijn; U heeft voorrang op Rc','Windows include frame; U takes precedence over Rc')),field(s,'rc',trb('Rc (m²K/W)','Rc (m²K/W)'),trb('Alleen dichte buitenconstructie; benaderende U','Opaque exterior element only; approximate U')),field(s,'factor',trb('Temperatuurfactor (0–1)','Temperature factor (0–1)'),trb('Voor grond/naastgelegen ruimte alleen indien onderbouwd; buiten automatisch 1','Ground/adjacent spaces only with justified factor; outdoor automatically 1')),field(s,'g',trb('g-waarde (0–1)','Solar g-value (0–1)')),field(s,'shading',trb('Zonwering','Shading'),'',choices.shading()));

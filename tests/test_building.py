@@ -35,3 +35,9 @@ def test_scalable_geometry_and_custom_roof():
     assert building.volume_calculation(p['volume_parts'])['total_m3']==42
     with pytest.raises(ValueError):building.normalize({'geometry':{'storeys':2.5}})
     with pytest.raises(ValueError):building.normalize({'geometry':{'roof_type':'flat','roof_planes':2}})
+
+def test_roof_calculations_persist_and_compute():
+    p=building.normalize({'roof_calculations':[{'name':'main roof','width':6,'length':10,'pitch':0},{'name':'extension','width':3,'length':6,'pitch':0},{'width':3,'length':10,'pitch':60},{'width':3}]})
+    assert building.estimate(p)['roof_areas_m2']==[60,18,60,None]
+    assert building.normalize(p)['roof_calculations']==p['roof_calculations']
+    assert not p['surfaces']  # calculations do not automatically create envelope surfaces
