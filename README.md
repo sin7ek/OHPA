@@ -1,4 +1,4 @@
-# HeatPump Analytics — v0.4.3 (prototype)
+# HeatPump Analytics — v0.4.4 (prototype)
 
 Standalone, read-only Home Assistant heat-pump analytics, with a local dashboard, sensor mapping wizard, SQLite storage, regional weather support and MCP tools for an external AI client. The software collects HA history directly; the existing HA-MCP container is optional and can remain running for other HA tasks. No model or paid AI API is needed to calculate the metrics.
 
@@ -13,10 +13,9 @@ cd /mnt/user/appdata/heatpump-analytics-project
 cp .env.example .env
 chmod 600 .env
 openssl rand -hex 32
-openssl rand -hex 32
 ```
 
-Edit `.env`: enter the HA URL and token, two different generated secrets (`ADMIN_PASSWORD`, `MCP_SECRET`), and the LAN IP of Unraid as `BIND_IP` (default is localhost only). `HOST_PORT=8095`; change if occupied. `DATA_PATH` can be adjusted to your preferred persistent appdata location. `TZ` must be your HA timezone. For local MCP tests, include `LAN-IP:*` in `MCP_ALLOWED_HOSTS` if needed.
+Edit `.env`: enter the HA URL and token, a generated `ADMIN_PASSWORD` (MCP_SECRET is optional; see the separate MCP guide), and the LAN IP of Unraid as `BIND_IP` (default is localhost only). `HOST_PORT=8095`; change if occupied. `DATA_PATH` can be adjusted to your preferred persistent appdata location. `TZ` must be your HA timezone. For optional local MCP tests, include the approved host in `MCP_ALLOWED_HOSTS`.
 
 ```bash
 mkdir -p /mnt/user/appdata/heatpump-analytics
@@ -176,3 +175,6 @@ Use fan-assisted convector/radiator labels, distinguish fan coil units, and add 
 
 ## v0.4.3 — Room loading and history collection
 Room configuration renders without waiting for HA registries, lazy per-room sensor editors, filtered suggestions limited to 80 matches, five-minute server registry cache and explicit refresh, no duplicate REST state fetch after registry load. Short history windows use batches of up to 24 mappings with fallback splitting; backward scan advances by up to three hours per cycle. Per-room minimum scan progress is distinct from valid measurement coverage. Existing history series and cursors are preserved.
+
+## v0.4.4 — Shared Docker / Home Assistant app
+See [installation guide](docs/installation.md). HA OS app uses the same versioned multi-architecture image and Supervisor Core API proxy, with ingress-only access. MCP is optional for Docker; existing configured secrets remain compatible. MCP is not exposed by the HA app. Experimental HA distribution until real Supervisor testing is completed.

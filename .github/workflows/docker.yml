@@ -20,7 +20,7 @@ jobs:
       - run: docker build --build-arg OHPA_REVISION=${GITHUB_SHA} -t ohpa:test .
       - name: Smoke test container
         run: |
-          docker run -d --name ohpa -p 127.0.0.1:8095:8095 -e ADMIN_PASSWORD=ci-only-password-123456 -e MCP_SECRET=ci-only-mcp-secret-123456789 ohpa:test
+          docker run -d --name ohpa -p 127.0.0.1:8095:8095 -e ADMIN_PASSWORD=ci-only-password-123456 ohpa:test
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8095/health; then exit 0; fi
             sleep 2
@@ -32,8 +32,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          docker tag ohpa:test ghcr.io/sin7ek/open-heatpump-analytics:latest
-          docker tag ohpa:test ghcr.io/sin7ek/open-heatpump-analytics:${GITHUB_SHA}
-          docker push ghcr.io/sin7ek/open-heatpump-analytics:latest
-          docker push ghcr.io/sin7ek/open-heatpump-analytics:${GITHUB_SHA}
+      - name: Verify release metadata
+        run: |
+          version=$(cat VERSION)
+          grep -Fx "version: \"$version\"" ohpa/config.yaml
+          echo "OHPA_VERSION=$version" >> "$GITHUB_ENV"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: OHPA_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/sin7ek/open-heatpump-analytics:latest
+            ghcr.io/sin7ek/open-heatpump-analytics:${{ github.sha }}
+            ghcr.io/sin7ek/open-heatpump-analytics:${{ env.OHPA_VERSION }}

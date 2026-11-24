@@ -1,0 +1,23 @@
+name: Open HeatPump Analytics
+version: "0.4.4"
+slug: ohpa
+description: Local heat pump, building and room analytics (experimental)
+url: https://github.com/sin7ek/open-heatpump-analytics
+arch:
+  - amd64
+  - aarch64
+image: ghcr.io/sin7ek/open-heatpump-analytics
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8095
+panel_icon: mdi:heat-pump
+panel_title: OHPA
+homeassistant_api: true
+environment:
+  OHPA_INSTALL_MODE: ha_app
+  MCP_ENABLED: "false"
+  DATA_DIR: /data
+options: {}
+schema: {}

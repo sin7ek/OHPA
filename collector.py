@@ -7,6 +7,9 @@ WAKE=threading.Event()
 STOP=threading.Event()
 HA_URL=os.getenv('HA_URL','').rstrip('/')
 HA_TOKEN=os.getenv('HA_TOKEN','')
+if os.getenv('OHPA_INSTALL_MODE')=='ha_app':
+    HA_URL='http://supervisor/core'
+    HA_TOKEN=os.getenv('SUPERVISOR_TOKEN','')
 
 def ha_get(path,params=None):
     if not HA_URL or not HA_TOKEN:raise RuntimeError('HA_URL and HA_TOKEN must be configured.')

@@ -15,4 +15,4 @@ COPY static ./static
 RUN mkdir /data && chown 1000:1000 /data
 USER 1000:1000
 EXPOSE 8095
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8095", "--no-access-log"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8095", "--no-access-log", "--no-proxy-headers"]

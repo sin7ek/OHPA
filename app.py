@@ -12,10 +12,14 @@ import building
 import ventilation
 import rooms
 
+INGRESS=os.getenv('OHPA_INSTALL_MODE','docker')=='ha_app'
 ADMIN=os.getenv('ADMIN_PASSWORD','');MCP_SECRET=os.getenv('MCP_SECRET','')
-if len(ADMIN)<16 or len(MCP_SECRET)<24 or ADMIN.startswith('replace_') or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET:
-    raise RuntimeError('Set distinct random ADMIN_PASSWORD (>=16 chars) and MCP_SECRET (>=24 chars) in .env')
-if not all(ch.isalnum() or ch in '-_' for ch in MCP_SECRET):raise RuntimeError('MCP_SECRET must be URL-safe.')
+# Preserve existing explicitly configured Docker MCP installations. HA app is ingress-only.
+MCP_ENABLED=not INGRESS and os.getenv('MCP_ENABLED','auto').lower() not in ('0','false','no','off') and bool(MCP_SECRET)
+if not INGRESS and (len(ADMIN)<16 or ADMIN.startswith('replace_')):
+    raise RuntimeError('Set a random ADMIN_PASSWORD (>=16 chars)')
+if MCP_ENABLED and (len(MCP_SECRET)<24 or MCP_SECRET.startswith('replace_') or ADMIN==MCP_SECRET or not all(ch.isalnum() or ch in '-_' for ch in MCP_SECRET)):
+    raise RuntimeError('Set a distinct URL-safe MCP_SECRET (>=24 chars), or disable MCP')
 init()
 
 def range_(start=None,end=None,hours=24,max_days=32):
@@ -89,32 +93,45 @@ mcp_app=mcp.streamable_http_app()
 async def lifespan(app):
     collector.STOP.clear();t=threading.Thread(target=collector.worker,daemon=True);t.start()
     try:
-        async with mcp.session_manager.run():yield
+        if MCP_ENABLED:
+            async with mcp.session_manager.run():yield
+        else:yield
     finally:collector.STOP.set();collector.WAKE.set()
 VERSION=(Path(__file__).parent/'VERSION').read_text().strip()
 REVISION=os.getenv('OHPA_REVISION','unknown')
 app=FastAPI(title='HeatPump Analytics',version=VERSION,lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
 MCP_PATH='/mcp/'+MCP_SECRET
-app.mount(MCP_PATH,mcp_app)
+if MCP_ENABLED:app.mount(MCP_PATH,mcp_app)
 @app.middleware('http')
 async def protect(request:Request,call_next):
     path=request.url.path
+    if INGRESS:
+        if not request.client or request.client.host!='172.30.32.2':
+            return JSONResponse({'detail':'Ingress only'},status_code=403)
     if path=='/health':return await call_next(request)
-    if path==MCP_PATH+'/' or path==MCP_PATH:return await call_next(request)
-    if path.startswith('/mcp/'):return JSONResponse({'detail':'Not found'},status_code=404)
-    auth=request.headers.get('authorization','')
-    expected='Basic '+base64.b64encode(('admin:'+ADMIN).encode()).decode()
-    if not secrets.compare_digest(auth,expected):return JSONResponse({'detail':'Authentication required'},status_code=401,headers={'WWW-Authenticate':'Basic realm="HeatPump Analytics"','Cache-Control':'no-store'})
+    if MCP_ENABLED and path in (MCP_PATH,MCP_PATH+'/'):return await call_next(request)
+    if path=='/mcp' or path.startswith('/mcp/'):return JSONResponse({'detail':'Not found'},status_code=404)
+    if not INGRESS:
+        auth=request.headers.get('authorization','')
+        expected='Basic '+base64.b64encode(('admin:'+ADMIN).encode()).decode()
+        if not secrets.compare_digest(auth,expected):return JSONResponse({'detail':'Authentication required'},status_code=401,headers={'WWW-Authenticate':'Basic realm="HeatPump Analytics"','Cache-Control':'no-store'})
     if request.method in ('POST','PUT','DELETE','PATCH') and request.headers.get('x-analytics-ui')!='1':return JSONResponse({'detail':'Missing UI request header'},status_code=403)
-    response=await call_next(request);response.headers['Cache-Control']='no-store';response.headers['X-Content-Type-Options']='nosniff';response.headers['X-Frame-Options']='DENY';return response
+    response=await call_next(request);response.headers['Cache-Control']='no-store';response.headers['X-Content-Type-Options']='nosniff';response.headers['X-Frame-Options']='SAMEORIGIN' if INGRESS else 'DENY';return response
 @app.get('/health')
 def health():return {'status':'ok','version':VERSION,'revision':REVISION}
 @app.get('/')
-def index():
+def index(request:Request):
     from fastapi.responses import HTMLResponse
     from html import escape
     page=(Path(__file__).parent/'static/index.html').read_text()
-    return HTMLResponse(page.replace('__OHPA_VERSION__',escape(VERSION)).replace('__OHPA_REVISION__',escape(REVISION[:12])),headers={'Cache-Control':'no-store'})
+    base='/'
+    if INGRESS:
+        import re
+        path=request.headers.get('x-ingress-path','')
+        if not re.fullmatch(r'/api/hassio_ingress/[A-Za-z0-9_-]+/?',path):
+            return JSONResponse({'detail':'Missing or invalid ingress path'},status_code=400)
+        base=path.rstrip('/')+'/'
+    return HTMLResponse(page.replace('__OHPA_BASE__',escape(base,quote=True)).replace('__OHPA_VERSION__',escape(VERSION)).replace('__OHPA_REVISION__',escape(REVISION[:12])).replace('__OHPA_MCP_HIDDEN__','' if MCP_ENABLED else 'hidden style="display:none"'),headers={'Cache-Control':'no-store'})
 app.mount('/static',StaticFiles(directory=Path(__file__).parent/'static'),name='static')
 @app.get('/api/config')
 def cfg():return {'config':config(),'roles':{k:{'label':v[0],'unit':v[1],'mode':v[2],'required':v[3],'units':v[4]} for k,v in ROLES.items()},'timezone':str(TZ)}

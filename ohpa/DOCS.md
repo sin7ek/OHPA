@@ -1,0 +1,2 @@
+# Open HeatPump Analytics (experimental)
+Install, start, and open Web UI. Enable Show in sidebar if desired. No HA URL, long-lived token, MCP secret or exposed port is required. HA Supervisor supplies the Core API credentials. Configure sensors in OHPA; verify units and measurement boundaries. Data is local in /data. Registry permissions may limit automatic device import; manual mapping remains available. This app is ingress-only and does not expose MCP. See https://github.com/sin7ek/open-heatpump-analytics/blob/main/docs/installation.md.
