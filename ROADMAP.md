@@ -23,3 +23,5 @@ Status as of 2026-11-24. Priorities are proposals, not commitments or dates. See
 
 ## Release gates
 Shared code and version; passing tests and image builds; real install/upgrade checks where relevant; no fabricated measurements; transparent coverage and uncertainty; avoid causal claims without suitable design. Prioritize safety and correctness over feature count.
+
+- v0.4.10: intervention log edit/delete and collision protection (PR validation pending).

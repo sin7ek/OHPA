@@ -80,3 +80,6 @@ Maintain root CHANGELOG.md for shared/Docker releases and ohpa/CHANGELOG.md for 
 
 ## v0.4.7 — repository rename
 Confirmed canonical GitHub repository sin7ek/OHPA. Preserve old GHCR tags in CI; add short aliases. Keep HA image reference and slug unchanged until anonymous pull and real Supervisor upgrade verified. Check public package visibility and update from existing repository URL; never delete existing app to migrate. CI pending; no analytic changes.
+
+## v0.4.10 intervention log
+Edit/delete existing entries via authenticated UI POST endpoints. Preserve schema, reject timestamp collisions and stale edits, confirm deletion, cancel editing. Test API validation and UI in both distributions. No measurement changes.
