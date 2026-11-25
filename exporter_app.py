@@ -46,6 +46,24 @@ async def ingress(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
+def detect_integrations(entities):
+    # Match existing source-reviewed suffix sets, not arbitrary brand name guesses.
+    result=[]
+    for name,p in profiles.PROFILES.items():
+        if name=="openquatt": continue
+        groups={}
+        for row in entities:
+            eid=row["entity_id"].split(".",1)[-1]
+            for role in ("supply","return","outside","frequency","defrost","pump_pwm"):
+                suffix=p.get(role)
+                if suffix and eid.endswith("_"+suffix):
+                    prefix=eid[:-len(suffix)-1]
+                    groups.setdefault(prefix,set()).add(role)
+        for prefix,roles in groups.items():
+            if {"supply","return","frequency"}<=roles:
+                result.append({"profile":name,"prefix":prefix,"matches":sorted(roles)})
+    return sorted(result,key=lambda r:(-len(r["matches"]),r["profile"],r["prefix"]))
+
 def candidates(entities):
     result = {}
     for role in ROLES:
@@ -84,7 +102,9 @@ def index(request:Request):
 
 @app.get("/api/setup")
 def setup():
-    try: return {"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(collector.entities()),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS),"saved":load_setup(),"required":REQUIRED}
+    try:
+        entities=collector.entities()
+        return {"integrations":detect_integrations(entities),"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(entities),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS),"saved":load_setup(),"required":REQUIRED}
     except Exception: raise HTTPException(502,"Cannot read Home Assistant states")
 
 def validate(payload, entities):
@@ -122,8 +142,33 @@ def validate(payload, entities):
     if ("comfort" in selected or any(k in mapping for k in ("inside","target","zone_temperature","zone_humidity","co2_indoor")) and any(k in selected for k in ("heat-loss","intervention"))) and payload.get("comfort_consent") is not True: raise ValueError("Separate comfort data consent required")
     use=set().union(*(PROFILES[k] for k in selected))
     if not payload.get("comfort_consent"): use-=set(COMFORT)
-    cfg={**core.DEFAULT,"model":model,"buh_mode":buh,"water_factor":factor,"mapping":{k:v for k,v in mapping.items() if k in use}}
+    cfg={**core.DEFAULT,"model":model,"buh_mode":buh,"water_factor":factor,"mapping":{k:v for k,v in mapping.items() if k in use},"installation":installation_metadata(payload.get("installation",{}))}
     return cfg,selected,hours,intervention
+
+INSTALL_CHOICES={
+    "integration":("openamber","bommer","leejow","other","unknown"),
+    "flow_meter":("yf_b10","aquaro","ultrasonic","other","unknown"),
+    "power_meter":("shelly","mid","other","unknown"),
+    "emitters":("floor","radiators","mixed","fan_coils","other","unknown"),
+    "hydraulics":("direct","series_buffer","parallel_buffer","other","unknown"),
+    "ventilation":("natural","mechanical","heat_recovery","other","unknown"),
+    "pump_control":("fixed","pwm","other","unknown"),
+}
+INSTALL_NUMBERS={"heated_area_m2":(1,2000),"heated_volume_m3":(1,10000),"glycol_pct":(0,60),"flow_accuracy_pct":(0,100)}
+
+def installation_metadata(raw):
+    if not isinstance(raw,dict): raise ValueError("Invalid installation metadata")
+    result={}
+    for k,choices in INSTALL_CHOICES.items():
+        v=raw.get(k,"unknown")
+        if v not in choices: raise ValueError("Invalid installation choice: "+k)
+        result[k]=v
+    for k,(lo,hi) in INSTALL_NUMBERS.items():
+        v=raw.get(k)
+        if v is None: continue
+        if type(v) not in (int,float) or not np.isfinite(v) or not lo<=v<=hi: raise ValueError("Invalid installation number: "+k)
+        result[k]=v
+    return result
 
 def build_package(cfg, selected, hours, intervention, installation_id, end):
     start=end-hours*3600
@@ -164,7 +209,7 @@ def build_package(cfg, selected, hours, intervention, installation_id, end):
                     if not counts[name]: raise ValueError("No usable history for "+name)
                     z.writestr(name+".csv",f.getvalue())
                 z.writestr("manifest.json",json.dumps({"schema":"ohpa-research/1","installation_id":installation_id,"hours":hours,"profiles":selected,"rows":counts,"time_basis":"relative seconds; event-aligned step intervals; not measurement freshness"},indent=2))
-                z.writestr("installation.json",json.dumps({"model":cfg["model"],"water_factor":cfg["water_factor"],"buh_mode":cfg["buh_mode"]}))
+                z.writestr("installation.json",json.dumps({"model":cfg["model"],"water_factor":cfg["water_factor"],"buh_mode":cfg["buh_mode"],**cfg.get("installation",{})}))
                 z.writestr("measurement-setup.json",json.dumps({k:{"source_unit":v["unit"],"canonical_unit":core.ROLES[k][1]} for k,v in cfg["mapping"].items()}))
                 z.writestr("data-quality.json",json.dumps({"observed_coverage_pct":quality,"warning":"Recorder coverage does not prove sensor freshness."}))
                 if "intervention" in selected: z.writestr("interventions.json",json.dumps(intervention))
@@ -196,7 +241,7 @@ def store_setup(payload):
     if not 0.5<=factor<=1.5: raise ValueError("Invalid water factor")
     DATA.mkdir(parents=True,exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w",dir=DATA,delete=False) as f:
-        json.dump({"mapping":mapping,"model":model,"buh_mode":buh,"water_factor":factor},f)
+        json.dump({"mapping":mapping,"model":model,"buh_mode":buh,"water_factor":factor,"installation":installation_metadata(payload.get("installation",{}))},f)
         tmp=f.name
     os.replace(tmp,DATA/"exporter-setup.json")
 
@@ -221,6 +266,12 @@ def summarize(content):
                 samples[name]=[row for _,row in zip(range(4),reader)]
         return {"manifest":manifest,"quality":quality,"samples":samples,"bytes":len(content),"sha256":hashlib.sha256(content).hexdigest()}
 
+def expire_preview(token):
+    global PREVIEW
+    with LOCK:
+        if PREVIEW and PREVIEW[0]==token:
+            PREVIEW=None
+
 @app.post("/api/preview")
 def preview(payload:dict):
     global PREVIEW
@@ -236,6 +287,9 @@ def preview(payload:dict):
         summary=summarize(content)
         token=secrets.token_urlsafe(24)
         PREVIEW=(token,time.monotonic()+PREVIEW_TTL,content)
+        timer=threading.Timer(PREVIEW_TTL,expire_preview,args=(token,))
+        timer.daemon=True
+        timer.start()
         return {"token":token,**summary}
     except (ValueError,TypeError,KeyError) as e: raise HTTPException(400,str(e))
     except Exception: raise HTTPException(502,"Export failed; check Recorder history and retry")

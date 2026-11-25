@@ -42,3 +42,33 @@ def test_expired_preview(monkeypatch):
     monkeypatch.setattr(e,'PREVIEW',('secret',time.monotonic()-1,b'zip'))
     with pytest.raises(HTTPException) as ex: e.download({'token':'secret','confirmed':True})
     assert ex.value.status_code==410
+
+def test_detection_groups_prefixes():
+    rows=[{"entity_id":"sensor."+prefix+"_"+suffix} for prefix in ("one","two") for suffix in ("cv_aanvoertemperatuur_tuo","cv_retourtemperatuur_tui","compressor_frequentie")]
+    found=e.detect_integrations(rows)
+    assert {x["prefix"] for x in found if x["profile"]=="openamber"}=={"one","two"}
+
+def test_metadata_allowlist():
+    import pytest
+    out=e.installation_metadata({"flow_meter":"aquaro","heated_area_m2":80,"address":"private"})
+    assert out["flow_meter"]=="aquaro" and out["heated_area_m2"]==80 and "address" not in out
+    with pytest.raises(ValueError): e.installation_metadata({"glycol_pct":100})
+
+def test_synthetic_package_privacy(monkeypatch):
+    import io,zipfile,json
+    import numpy as np
+    from pathlib import Path
+    previous=e.core.DATA
+    monkeypatch.setattr(e.collector,"fetch_history",lambda *args:1)
+    monkeypatch.setattr(e.core,"aligned",lambda cfg,a,b:(np.array([a],dtype=float),np.array([b-a],dtype=float),{"defrost":np.array([1.]),"frequency":np.array([40.]),"outside":np.array([2.])}))
+    mapping={k:{"entity":"sensor.private_"+k,"unit":e.core.ROLES[k][1]} for k in ("defrost","frequency","outside")}
+    cfg={**e.core.DEFAULT,"mapping":mapping,"model":"amber95","installation":e.installation_metadata({"flow_meter":"aquaro"})}
+    blob=e.build_package(cfg,["defrost"],24,None,"a"*32,1800000000)
+    assert e.core.DATA==previous
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        assert set(z.namelist())=={"manifest.json","installation.json","measurement-setup.json","data-quality.json","defrost.csv"}
+        for name in z.namelist():
+            assert b"sensor.private" not in z.read(name)
+            assert b"1800000000" not in z.read(name)
+        assert json.loads(z.read("data-quality.json"))["observed_coverage_pct"]["defrost_paired_pct"]==100
+        assert json.loads(z.read("installation.json"))["flow_meter"]=="aquaro"

@@ -17,6 +17,11 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt pytest
       - run: python -m pytest -q tests/test_exporter_app.py
+      - name: Verify exporter version
+        run: |
+          version=$(sed -n 's/^version: "\([^"]*\)"/\1/p' ohpa-exporter/config.yaml)
+          grep -Fx "## $version" ohpa-exporter/CHANGELOG.md
+          echo "EXPORTER_VERSION=$version" >> "$GITHUB_ENV"
       - run: docker build --target exporter -t ohpa-exporter:test .
       - name: Ingress denial smoke test
         run: |
@@ -41,4 +46,4 @@ jobs:
           target: exporter
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/sin7ek/ohpa-exporter:0.1.1
+          tags: ghcr.io/sin7ek/ohpa-exporter:${{ env.EXPORTER_VERSION }}

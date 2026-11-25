@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Detect coherent integration prefixes from existing source-reviewed profiles; never overwrite mappings.
+- Filter sensor roles and collect optional structured installation metadata.
+- Expire cached preview bytes automatically after 15 minutes.
+- Validate synthetic ZIP contents, privacy and metadata limits; verify exporter release metadata in CI.
+
 ## 0.1.1
 
 - Persist local sensor mappings; consent is never persisted.
