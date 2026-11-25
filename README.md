@@ -64,3 +64,6 @@ See [LICENSE](LICENSE). No affiliation with manufacturers, Home Assistant or int
 
 ## Repository rename
 The canonical repository is now https://github.com/sin7ek/OHPA. CI publishes short image aliases `ghcr.io/sin7ek/ohpa` and `ghcr.io/sin7ek/ohpa-ha` alongside the original image names. Existing installations should keep their current image and data path. HA app slug and configured legacy image remain unchanged during migration. New package public pull access must be verified before recommending a switch; if unavailable, use the original image.
+
+## OHPA Data Exporter (experimental)
+A separate HA app for voluntary research contributions, no full OHPA required. See [app guide](ohpa-exporter/DOCS.md). Local ZIP export only; review before sharing.
