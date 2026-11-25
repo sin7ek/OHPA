@@ -300,12 +300,45 @@ def cmp(before_start:str,before_end:str,after_start:str,after_end:str):
     except ValueError as e:raise HTTPException(400,str(e))
 @app.get('/api/changes')
 def changes():return change_list()
+def intervention_values(x):
+    try:
+        t=parse_time(x['time'])
+        note=x['note']
+        if not math.isfinite(t) or not isinstance(note,str) or not note.strip() or len(note.strip())>1000: raise ValueError()
+        return t,note.strip()
+    except (ValueError,TypeError,KeyError,OverflowError): raise HTTPException(400,'Time and note required (max 1000 characters).')
+
 @app.post('/api/changes')
 async def note(request:Request):
+    t,s=intervention_values(await request.json())
+    with db() as c:
+        try:c.execute('INSERT INTO changes VALUES(?,?)',(t,s))
+        except sqlite3.IntegrityError:raise HTTPException(409,'An intervention already exists at this time.')
+    return {'ok':True}
+
+def intervention_original(x):
+    try:
+        t=parse_time(x['original_time'])
+        if not math.isfinite(t) or not isinstance(x['original_note'],str):raise ValueError()
+        return t,x['original_note']
+    except (ValueError,TypeError,KeyError,OverflowError):raise HTTPException(400,'Original intervention required.')
+
+@app.post('/api/changes/edit')
+async def edit_change(request:Request):
     x=await request.json()
-    try:t=parse_time(x['time']);s=str(x['note']).strip()[:1000];assert s
-    except Exception:raise HTTPException(400,'Time and note required.')
-    with db() as c:c.execute('INSERT OR REPLACE INTO changes VALUES(?,?)',(t,s))
+    old,original=intervention_original(x);t,s=intervention_values(x)
+    with db() as c:
+        try:r=c.execute('UPDATE changes SET t=?,note=? WHERE t=? AND note=?',(t,s,old,original))
+        except sqlite3.IntegrityError:raise HTTPException(409,'An intervention already exists at this time.')
+        if r.rowcount!=1:raise HTTPException(409,'Intervention changed or deleted; refresh the log.')
+    return {'ok':True}
+
+@app.post('/api/changes/delete')
+async def delete_change(request:Request):
+    old,original=intervention_original(await request.json())
+    with db() as c:
+        r=c.execute('DELETE FROM changes WHERE t=? AND note=?',(old,original))
+        if r.rowcount!=1:raise HTTPException(409,'Intervention changed or deleted; refresh the log.')
     return {'ok':True}
 
 @app.get('/api/weather-defrost')
