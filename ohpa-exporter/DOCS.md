@@ -6,3 +6,6 @@ Data is pseudonymous, not anonymous. Relative times, installation ID and technic
 
 ## Installation metadata and detection
 Optional structured choices and numeric ranges only; no free text, location, serial numbers or contact details. Integration detection matches known suffixes grouped by device prefix. Existing remmob/electropaultje profiles are not yet independently verified as Bommer/Leejow; select these manually if appropriate. No guess is made for physical power/flow or operating-state semantics. Saved setup remains local; clear or change fields and save to update it. Cached preview expires automatically.
+
+## Repeated exports
+Choose an optional end date/time in your browser's local timezone (converted to UTC). Local history records downloaded packages, not delivery, and retains up to 200 periods. Overlap with previously downloaded profiles requires explicit confirmation. Absolute dates remain local and are not included in the ZIP. No automatic sending.

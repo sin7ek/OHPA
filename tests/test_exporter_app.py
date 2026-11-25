@@ -72,3 +72,10 @@ def test_synthetic_package_privacy(monkeypatch):
             assert b"1800000000" not in z.read(name)
         assert json.loads(z.read("data-quality.json"))["observed_coverage_pct"]["defrost_paired_pct"]==100
         assert json.loads(z.read("installation.json"))["flow_meter"]=="aquaro"
+
+def test_local_overlap(monkeypatch,tmp_path):
+    monkeypatch.setattr(e,"DATA",tmp_path)
+    e.record_download({"start":0,"end":100,"profiles":["defrost"],"sha256":"x"})
+    assert len(e.overlapping(99,200,["defrost"]))==1
+    assert not e.overlapping(100,200,["defrost"])
+    assert not e.overlapping(0,100,["comfort"])

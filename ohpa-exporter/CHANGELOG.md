@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- Native HA icon/logo and branded web header using existing OHPA assets.
+- Optional export end time and local download history, with overlapping-period confirmation.
+- Absolute period boundaries stay local; ZIP schema unchanged.
+
 ## 0.1.2
 
 - Detect coherent integration prefixes from existing source-reviewed profiles; never overwrite mappings.

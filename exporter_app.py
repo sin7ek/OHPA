@@ -4,12 +4,14 @@ from pathlib import Path
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 import core, collector, profiles, research_flow, virtual_flow, vfm_export
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 LOCK = threading.Lock()
 PREVIEW = None
 PREVIEW_TTL = 900
+PREVIEW_PERIOD = None
 DATA = Path(os.getenv("DATA_DIR", "/data"))
 BASE = ("frequency","outside","supply","return","power","heating","defrost")
 REF = ("flow","flow_counter")
@@ -100,11 +102,15 @@ def index(request:Request):
     if not re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+/?",prefix): raise HTTPException(400,"Invalid ingress path")
     return HTMLResponse(Path("/app/exporter/index.html").read_text().replace("__BASE__",prefix.rstrip("/")+"/"))
 
+@app.get("/static/app-icon.svg")
+def icon():
+    return Response(Path("/app/exporter/app-icon.svg").read_text(),media_type="image/svg+xml")
+
 @app.get("/api/setup")
 def setup():
     try:
         entities=collector.entities()
-        return {"integrations":detect_integrations(entities),"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(entities),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS),"saved":load_setup(),"required":REQUIRED}
+        return {"integrations":detect_integrations(entities),"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(entities),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS),"saved":load_setup(),"required":REQUIRED,"history":load_history()}
     except Exception: raise HTTPException(502,"Cannot read Home Assistant states")
 
 def validate(payload, entities):
@@ -217,6 +223,26 @@ def build_package(cfg, selected, hours, intervention, installation_id, end):
         finally: core.DATA=old
 
 
+def load_history():
+    path=DATA/"export-history.json"
+    if path.is_symlink(): return []
+    try:
+        rows=json.loads(path.read_text())
+        return rows if isinstance(rows,list) else []
+    except (OSError,ValueError): return []
+
+def overlapping(start,end,selected):
+    return [r for r in load_history() if r["start"]<end and r["end"]>start and set(r["profiles"])&set(selected)]
+
+def record_download(period):
+    if period is None:return
+    rows=(load_history()+[period])[-200:]
+    DATA.mkdir(parents=True,exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w",dir=DATA,delete=False) as f:
+        json.dump(rows,f)
+        tmp=f.name
+    os.replace(tmp,DATA/"export-history.json")
+
 def load_setup():
     path=DATA/"exporter-setup.json"
     if path.is_symlink(): return {}
@@ -267,30 +293,40 @@ def summarize(content):
         return {"manifest":manifest,"quality":quality,"samples":samples,"bytes":len(content),"sha256":hashlib.sha256(content).hexdigest()}
 
 def expire_preview(token):
-    global PREVIEW
+    global PREVIEW,PREVIEW_PERIOD
     with LOCK:
         if PREVIEW and PREVIEW[0]==token:
-            PREVIEW=None
+            PREVIEW=None;PREVIEW_PERIOD=None
 
 @app.post("/api/preview")
 def preview(payload:dict):
-    global PREVIEW
+    global PREVIEW,PREVIEW_PERIOD
     if not LOCK.acquire(blocking=False): raise HTTPException(409,"Export already running")
     try:
-        PREVIEW=None
+        PREVIEW=None;PREVIEW_PERIOD=None
         cfg,selected,hours,intervention=validate(payload,collector.entities())
         DATA.mkdir(parents=True,exist_ok=True)
         iid=vfm_export.read_installation_id(DATA)
-        end=int((core.now()-15)//60)*60
+        latest=int((core.now()-15)//60)*60
+        end=latest
+        if payload.get("end"):
+            import datetime as dt
+            when=dt.datetime.fromisoformat(payload["end"])
+            if when.utcoffset() is None:raise ValueError("End requires timezone offset")
+            end=int(when.timestamp()//60)*60
+            if end>latest:raise ValueError("End must not be in the future")
+        start=end-hours*3600
+        overlaps=overlapping(start,end,selected)
         content=build_package(cfg,selected,hours,intervention,iid,end)
         if len(content)>25_000_000: raise ValueError("ZIP exceeds 25 MB; select fewer profiles or a shorter period")
         summary=summarize(content)
         token=secrets.token_urlsafe(24)
         PREVIEW=(token,time.monotonic()+PREVIEW_TTL,content)
+        PREVIEW_PERIOD={"start":start,"end":end,"profiles":selected,"sha256":summary["sha256"]}
         timer=threading.Timer(PREVIEW_TTL,expire_preview,args=(token,))
         timer.daemon=True
         timer.start()
-        return {"token":token,**summary}
+        return {"token":token,"overlap_count":len(overlaps),**summary}
     except (ValueError,TypeError,KeyError) as e: raise HTTPException(400,str(e))
     except Exception: raise HTTPException(502,"Export failed; check Recorder history and retry")
     finally: LOCK.release()
@@ -305,6 +341,8 @@ def download(payload:dict):
         if not isinstance(payload.get("token"),str) or not secrets.compare_digest(payload["token"],PREVIEW[0]):
             raise HTTPException(404,"Preview not found")
         if payload.get("confirmed") is not True: raise HTTPException(400,"Confirm reviewed export")
+        if PREVIEW_PERIOD and overlapping(PREVIEW_PERIOD["start"],PREVIEW_PERIOD["end"],PREVIEW_PERIOD["profiles"]) and payload.get("overlap_confirmed") is not True:raise HTTPException(409,"Confirm overlapping export")
         content=PREVIEW[2]
-        PREVIEW=None
+        record_download(PREVIEW_PERIOD)
+        PREVIEW=None;PREVIEW_PERIOD=None
         return Response(content,media_type="application/zip",headers={"Content-Disposition":'attachment; filename="ohpa-research.zip"'})
