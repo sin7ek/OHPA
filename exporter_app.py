@@ -1,5 +1,5 @@
 """Standalone, ingress-only, on-demand research exporter. No uploads."""
-import csv, io, json, os, re, tempfile, threading, zipfile
+import csv, io, json, os, re, tempfile, threading, zipfile, hashlib, time, secrets
 from pathlib import Path
 import numpy as np
 from fastapi import FastAPI, Request, HTTPException
@@ -8,6 +8,8 @@ import core, collector, profiles, research_flow, virtual_flow, vfm_export
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 LOCK = threading.Lock()
+PREVIEW = None
+PREVIEW_TTL = 900
 DATA = Path(os.getenv("DATA_DIR", "/data"))
 BASE = ("frequency","outside","supply","return","power","heating","defrost")
 REF = ("flow","flow_counter")
@@ -82,7 +84,7 @@ def index(request:Request):
 
 @app.get("/api/setup")
 def setup():
-    try: return {"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(collector.entities()),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS)}
+    try: return {"roles":{k:core.ROLES[k][0] for k in ROLES},"candidates":candidates(collector.entities()),"profiles":list(PROFILES),"models":sorted(virtual_flow.MODELS),"saved":load_setup(),"required":REQUIRED}
     except Exception: raise HTTPException(502,"Cannot read Home Assistant states")
 
 def validate(payload, entities):
@@ -117,8 +119,9 @@ def validate(payload, entities):
         intervention={k:intervention[k] for k in ("parameter","before","after","minute_index")}
     missing=eligibility(mapping,model,buh,intervention)
     if any(missing[k] for k in selected): raise ValueError("Missing requirements: "+json.dumps({k:missing[k] for k in selected if missing[k]}))
-    if "comfort" in selected and payload.get("comfort_consent") is not True: raise ValueError("Separate comfort data consent required")
+    if ("comfort" in selected or any(k in mapping for k in ("inside","target","zone_temperature","zone_humidity","co2_indoor")) and any(k in selected for k in ("heat-loss","intervention"))) and payload.get("comfort_consent") is not True: raise ValueError("Separate comfort data consent required")
     use=set().union(*(PROFILES[k] for k in selected))
+    if not payload.get("comfort_consent"): use-=set(COMFORT)
     cfg={**core.DEFAULT,"model":model,"buh_mode":buh,"water_factor":factor,"mapping":{k:v for k,v in mapping.items() if k in use}}
     return cfg,selected,hours,intervention
 
@@ -145,6 +148,14 @@ def build_package(cfg, selected, hours, intervention, installation_id, end):
                         z.writestr("vfm-reference.csv",research_flow.export_csv(rows)); counts[name]=len(rows)
                         continue
                     keys=sorted(set(PROFILES[name])&set(x))
+                    req=list(REQUIRED[name])
+                    if name=="pump-pwm": req.append("flow")
+                    if name=="heat-loss" and "thermal" not in keys: req.extend(("flow","supply","return"))
+                    elif name=="heat-loss": req.append("thermal")
+                    if not all(k in x for k in req): raise ValueError("Missing historical series for "+name)
+                    paired=np.logical_and.reduce([np.isfinite(x[k]) for k in req])
+                    quality[name+"_paired_pct"]=round(100*float(d[paired].sum())/(end-start),2)
+                    if not paired.any(): raise ValueError("No jointly observed required measurements for "+name)
                     f=io.StringIO(); w=csv.writer(f); w.writerow(["relative_seconds","duration_seconds",*keys])
                     for i in range(len(t)):
                         if not any(np.isfinite(x[k][i]) for k in keys): continue
@@ -160,16 +171,86 @@ def build_package(cfg, selected, hours, intervention, installation_id, end):
             return output.getvalue()
         finally: core.DATA=old
 
-@app.post("/api/export")
-def export(payload:dict):
+
+def load_setup():
+    path=DATA/"exporter-setup.json"
+    if path.is_symlink(): return {}
+    try:
+        result=json.loads(path.read_text())
+        return result if isinstance(result,dict) else {}
+    except (OSError,ValueError): return {}
+
+def store_setup(payload):
+    # Local configuration only; do not persist consent, intervention, or credentials.
+    allowed=candidates(collector.entities())
+    mapping={}
+    for role,m in payload.get("mapping",{}).items():
+        if role not in allowed or not isinstance(m,dict): raise ValueError("Invalid mapping")
+        if not any(r["entity"]==m.get("entity") for r in allowed[role]): raise ValueError("Unknown entity")
+        mapping[role]={"entity":m["entity"],"on_value":str(m.get("on_value","on"))[:100]}
+    model=payload.get("model")
+    if model not in (*virtual_flow.MODELS,"generic"): raise ValueError("Invalid model")
+    buh=payload.get("buh_mode")
+    if buh not in ("unknown","none","separate"): raise ValueError("Invalid BUH boundary")
+    factor=float(payload.get("water_factor",1.163))
+    if not 0.5<=factor<=1.5: raise ValueError("Invalid water factor")
+    DATA.mkdir(parents=True,exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w",dir=DATA,delete=False) as f:
+        json.dump({"mapping":mapping,"model":model,"buh_mode":buh,"water_factor":factor},f)
+        tmp=f.name
+    os.replace(tmp,DATA/"exporter-setup.json")
+
+@app.post("/api/save")
+def save(payload:dict):
+    try: store_setup(payload); return {"saved":True}
+    except (ValueError,TypeError,KeyError): raise HTTPException(400,"Invalid setup")
+    except Exception: raise HTTPException(502,"Could not save setup")
+
+@app.post("/api/eligibility")
+def check(payload:dict):
+    return eligibility(payload.get("mapping",{}),payload.get("model"),payload.get("buh_mode"),payload.get("intervention"))
+
+def summarize(content):
+    with zipfile.ZipFile(io.BytesIO(content)) as z:
+        manifest=json.loads(z.read("manifest.json"))
+        quality=json.loads(z.read("data-quality.json"))
+        samples={}
+        for name in manifest["profiles"]:
+            with z.open(name+".csv") as f:
+                reader=csv.reader(io.TextIOWrapper(f,encoding="utf-8"))
+                samples[name]=[row for _,row in zip(range(4),reader)]
+        return {"manifest":manifest,"quality":quality,"samples":samples,"bytes":len(content),"sha256":hashlib.sha256(content).hexdigest()}
+
+@app.post("/api/preview")
+def preview(payload:dict):
+    global PREVIEW
     if not LOCK.acquire(blocking=False): raise HTTPException(409,"Export already running")
     try:
+        PREVIEW=None
         cfg,selected,hours,intervention=validate(payload,collector.entities())
         DATA.mkdir(parents=True,exist_ok=True)
         iid=vfm_export.read_installation_id(DATA)
         end=int((core.now()-15)//60)*60
         content=build_package(cfg,selected,hours,intervention,iid,end)
-        return Response(content,media_type="application/zip",headers={"Content-Disposition":'attachment; filename="ohpa-research.zip"'})
+        if len(content)>25_000_000: raise ValueError("ZIP exceeds 25 MB; select fewer profiles or a shorter period")
+        summary=summarize(content)
+        token=secrets.token_urlsafe(24)
+        PREVIEW=(token,time.monotonic()+PREVIEW_TTL,content)
+        return {"token":token,**summary}
     except (ValueError,TypeError,KeyError) as e: raise HTTPException(400,str(e))
     except Exception: raise HTTPException(502,"Export failed; check Recorder history and retry")
     finally: LOCK.release()
+
+@app.post("/api/download")
+def download(payload:dict):
+    global PREVIEW
+    with LOCK:
+        if not PREVIEW or time.monotonic()>PREVIEW[1]:
+            PREVIEW=None
+            raise HTTPException(410,"Preview expired; generate again")
+        if not isinstance(payload.get("token"),str) or not secrets.compare_digest(payload["token"],PREVIEW[0]):
+            raise HTTPException(404,"Preview not found")
+        if payload.get("confirmed") is not True: raise HTTPException(400,"Confirm reviewed export")
+        content=PREVIEW[2]
+        PREVIEW=None
+        return Response(content,media_type="application/zip",headers={"Content-Disposition":'attachment; filename="ohpa-research.zip"'})

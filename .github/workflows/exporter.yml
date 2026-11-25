@@ -41,4 +41,4 @@ jobs:
           target: exporter
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/sin7ek/ohpa-exporter:0.1.0
+          tags: ghcr.io/sin7ek/ohpa-exporter:0.1.1
